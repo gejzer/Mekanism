@@ -33,7 +33,7 @@ public class BlockObsidianTNT extends Block
 	}
 
     @Override
-    public Icon getBlockTextureFromSideAndMetadata(int side, int meta)
+    public Icon getIcon(int side, int meta)
     {
         if(side == 1)
         {

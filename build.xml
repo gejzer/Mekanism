@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<project name="UniversalElectricity" default="build">
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties" />
+	
+	<property file="../shared.properties" />
+	<property file="${dir.mcp}/forge/forgeversion.properties" />
+	<property environment="env" />
+	<loadfile property="version.mod" srcFile="modversion.txt"/>
+	<import file="../utils.xml" as="utils"/>
+	<property name="file.modFull" value="Mekanism_v${version.mod}_f${forge.major.number}.${forge.minor.number}.${forge.revision.number}.${forge.build.number}" />
+	
+	<target name="compile">
+		<delete dir="dev" />
+		<delete dir="output" />
+		
+		<copy todir="${dir.mcp}/src/minecraft" overwrite="true">
+			
+			<fileset dir="${dir.development}src/minecraft">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+			</fileset>
+			
+		</copy>
+		<!--solve dependencies-->
+		<copy todir="${dir.mcp}/src/minecraft">
+			
+			<fileset dir="../UE/src">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+			</fileset>
+			
+		</copy>
+		<copy todir="${dir.mcp}/src/minecraft">
+			
+			<fileset dir="${dir.development}../IC2_api">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+			</fileset>
+			
+		</copy>
+		<copy todir="${dir.mcp}/src/minecraft">
+			
+			<fileset dir="${dir.development}../BuildCraft/common">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+			</fileset>
+			
+		</copy>
+		<copy todir="${dir.mcp}/src/minecraft">
+			
+			<fileset dir="${dir.development}../ThermalExpansion_api">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+			</fileset>
+			
+		</copy>
+		<copy todir="${dir.mcp}/src/minecraft">
+			
+			<fileset dir="${dir.development}../CC_api/api/src">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+			</fileset>
+			
+		</copy>
+		<copy todir="${dir.mcp}/src/minecraft" overwrite="true">
+			
+			<fileset dir="${dir.development}../NEI">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="MANIFEST.MF"/>
+				<exclude name="mcmod.info"/>
+				<exclude name="*.cfg"/>
+				<exclude name="*.jar"/>
+			</fileset>
+			
+		</copy>
+		<copy todir="${dir.mcp}/src/minecraft" overwrite="true">
+			
+			<fileset dir="${dir.development}../CodeChickenCore">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="MANIFEST.MF"/>
+				<exclude name="mcmod.info"/>
+				<exclude name="*.cfg"/>
+				<exclude name="*.jar"/>
+			</fileset>
+			
+		</copy>
+		<copy todir="${dir.mcp}/src/minecraft/micdoodle8/mods/galacticraft/API">
+			
+			<fileset dir="${dir.development}../GalacticCraft_api/micdoodle8/mods/galacticraft/API">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="MANIFEST.MF"/>
+				<exclude name="mcmod.info"/>
+				<exclude name="*.cfg"/>
+				<exclude name="*.jar"/>
+			</fileset>
+			
+		</copy>
+		
+		<mkdir dir="output" />
+		<mkdir dir="dev" />
+		<exec dir="${dir.mcp}" executable="cmd" osfamily="windows">
+			<arg line="/c recompile.bat" />
+		</exec>
+		<exec dir="${dir.mcp}" executable="cmd" osfamily="windows">
+			<arg line="/c reobfuscate_srg.bat" />
+		</exec>
+		
+		<exec dir="${dir.mcp}" executable="bash" osfamily="unix">
+			<arg line="recompile.sh" />
+		</exec>
+		<exec dir="${dir.mcp}" executable="bash" osfamily="unix">
+			<arg line="reobfuscate_srg.sh" />
+		</exec>
+	</target>
+	
+	<target name="build" depends="compile">
+		<copy todir="dev">
+			<fileset dir="${dir.mcp}/reobf/minecraft" excludes=".git/**" />
+		
+			<fileset dir="${dir.development}resources">
+				<exclude name=".git/**"/>
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.xml"/>
+			</fileset>
+		</copy>
+	</target>
+</project>

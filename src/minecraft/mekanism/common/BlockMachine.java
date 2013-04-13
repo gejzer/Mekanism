@@ -179,7 +179,7 @@ public class BlockMachine extends BlockContainer implements IDismantleable
 	}
     
 	@Override
-    public Icon getBlockTextureFromSideAndMetadata(int side, int meta)
+    public Icon getIcon(int side, int meta)
     {
     	if(meta == 0)
     	{

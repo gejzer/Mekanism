@@ -1,0 +1,17 @@
+[
+{
+  "modid": "@MODID@",
+  "name": "@MODNAME@",
+  "description": "@MODDESC@",
+  "version": "@MODVERSION@",
+  "mcversion": "@MCVERSION@",
+  "updateUrl": "",
+  "authors": [
+    "aidancbrady"
+  ],
+  "credits": "@MODCREDITS@",
+  "logoFile": "logo.png",
+  "screenshots": [
+  ]
+}
+]

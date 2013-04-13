@@ -2,14 +2,38 @@
 
 <project name="UniversalElectricity" default="build">
 	<taskdef resource="net/sf/antcontrib/antcontrib.properties" />
+	<!--
+	Energy, Armor, Tools, Weapons, Machines, Magic.
+	Thanks to everyone who has contributed to this ongoing project.
+	-->
 	
 	<property file="../shared.properties" />
 	<property file="${dir.mcp}/forge/forgeversion.properties" />
 	<property environment="env" />
 	<loadfile property="version.mod" srcFile="modversion.txt"/>
 	<import file="../utils.xml" as="utils"/>
-	<property name="file.modFull" value="Mekanism_v${version.mod}_f${forge.major.number}.${forge.minor.number}.${forge.revision.number}.${forge.build.number}" />
+	<property name="file.mekanism" value="Mekanism_v${version.mod}_f${forge.build.number}" />
+	<property name="file.mekanismtools" value="MekanismTools_v${version.mod}_f${forge.build.number}" />
+	<property name="file.mekanismgenerators" value="MekanismGenerators_v${version.mod}_f${forge.build.number}" />
+	<!--packaging-->
+	<property name="package.mekanism.modid" value="Mekanism" />
+	<property name="package.mekanism.modname" value="Mekanism" />
+	<property name="package.mekanism.modversion" value="${version.mod}" />
+	<property name="package.mekanism.moddesc" value="Energy, Armor, Tools, Weapons, Machines, Magic." />
+	<property name="package.mekanism.modcredits" value="Thanks to everyone who has contributed to this ongoing project." />
 	
+	<property name="package.mekanismtools.modid" value="MekanismTools" />
+	<property name="package.mekanismtools.modname" value="MekanismTools" />
+	<property name="package.mekanismtools.modversion" value="${version.mod}" />
+	<property name="package.mekanismtools.moddesc" value="Tools module for Mekanism." />
+	<property name="package.mekanismtools.modcredits" value="Thanks to everyone who has contributed to this ongoing project." />
+	
+	<property name="package.mekanismgenerators.modid" value="MekanismGenerators" />
+	<property name="package.mekanismgenerators.modname" value="MekanismGenerators" />
+	<property name="package.mekanismgenerators.modversion" value="${version.mod}" />
+	<property name="package.mekanismgenerators.moddesc" value="Generators module for Mekanism." />
+	<property name="package.mekanismgenerators.modcredits" value="Thanks to everyone who has contributed to this ongoing project." />
+	<!--endofpackaging-->
 	<target name="compile">
 		<delete dir="dev" />
 		<delete dir="output" />
@@ -102,13 +126,17 @@
 		
 		<mkdir dir="output" />
 		<mkdir dir="dev" />
+		
+	</target>
+	
+	<target name="build" depends="compile">
 		<exec dir="${dir.mcp}" executable="cmd" osfamily="windows">
 			<arg line="/c recompile.bat" />
 		</exec>
 		<exec dir="${dir.mcp}" executable="cmd" osfamily="windows">
 			<arg line="/c reobfuscate_srg.bat" />
 		</exec>
-		
+			
 		<exec dir="${dir.mcp}" executable="bash" osfamily="unix">
 			<arg line="recompile.sh" />
 		</exec>
@@ -116,16 +144,76 @@
 			<arg line="reobfuscate_srg.sh" />
 		</exec>
 	</target>
-	
-	<target name="build" depends="compile">
-		<copy todir="dev">
-			<fileset dir="${dir.mcp}/reobf/minecraft" excludes=".git/**" />
-		
-			<fileset dir="${dir.development}resources">
-				<exclude name=".git/**"/>
-				<exclude name="**/*.java"/>
-				<exclude name="**/*.xml"/>
+	<target name="package">
+		<!--mekanism-->
+		<delete dir="output/mekanism" />
+		<mkdir dir="output/mekanism" />
+		<copy todir="output/mekanism">
+			<fileset dir="${dir.development}bin/minecraft">
+				
 			</fileset>
 		</copy>
+		<replace file="output/mekanism/mcmod.info" token="@MODID@" value="${package.mekanism.modid}" />
+		<replace file="output/mekanism/mcmod.info" token="@MODNAME@" value="${package.mekanism.modname}" />
+		<replace file="output/mekanism/mcmod.info" token="@MODDESC@" value="${package.mekanism.moddesc}" />
+		<replace file="output/mekanism/mcmod.info" token="@MODVERSION@" value="${version.mod}" />
+		<replace file="output/mekanism/mcmod.info" token="@MCVERSION@" value="${version.minecraft}" />
+		<replace file="output/mekanism/mcmod.info" token="@MODCREDITS@" value="${package.mekanism.modcredits}" />
+		<copy todir="output/mekanism">
+			<fileset dir="${dir.mcp}/reobf/minecraft">
+				<include name="ic2/api/**"/>
+				<include name="buildcraft/api/**"/>
+				<include name="thermalexpansion/api/**"/>
+				<include name="dan200/api/**"/>
+				<include name="universalelectricity/core/**"/>
+				<include name="universalelectricity/prefab/**"/>
+				<include name="mekanism/**"/>
+				<exclude name="mekanism/tools/**"/>
+				<exclude name="mekanism/generators/**"/>
+			</fileset>
+		</copy>
+		<jar destfile="output/${file.mekanism}.jar" basedir="output/mekanism"/>
+		<!--mekanismtools-->
+		<delete dir="output/mekanismtools" />
+		<mkdir dir="output/mekanismtools" />
+		<copy todir="output/mekanismtools">
+			<fileset dir="${dir.development}bin/minecraft">
+				<include name="mcmod.info"/>
+				<include name="logo.png"/>
+			</fileset>
+		</copy>
+		<replace file="output/mekanismtools/mcmod.info" token="@MODID@" value="${package.mekanismtools.modid}" />
+		<replace file="output/mekanismtools/mcmod.info" token="@MODNAME@" value="${package.mekanismtools.modname}" />
+		<replace file="output/mekanismtools/mcmod.info" token="@MODDESC@" value="${package.mekanismtools.moddesc}" />
+		<replace file="output/mekanismtools/mcmod.info" token="@MODVERSION@" value="${version.mod}" />
+		<replace file="output/mekanismtools/mcmod.info" token="@MCVERSION@" value="${version.minecraft}" />
+		<replace file="output/mekanismtools/mcmod.info" token="@MODCREDITS@" value="${package.mekanismtools.modcredits}" />
+		<copy todir="output/mekanismtools">
+			<fileset dir="${dir.mcp}/reobf/minecraft">
+				<include name="mekanism/tools/**"/>
+			</fileset>
+		</copy>
+		<jar destfile="output/${file.mekanismtools}.jar" basedir="output/mekanismtools"/>
+		<!--mekanismgenerators-->
+		<delete dir="output/mekanismgenerators" />
+		<mkdir dir="output/mekanismgenerators" />
+		<copy todir="output/mekanismgenerators">
+			<fileset dir="${dir.development}bin/minecraft">
+				<include name="mcmod.info"/>
+				<include name="logo.png"/>
+			</fileset>
+		</copy>
+		<replace file="output/mekanismgenerators/mcmod.info" token="@MODID@" value="${package.mekanismgenerators.modid}" />
+		<replace file="output/mekanismgenerators/mcmod.info" token="@MODNAME@" value="${package.mekanismgenerators.modname}" />
+		<replace file="output/mekanismgenerators/mcmod.info" token="@MODDESC@" value="${package.mekanismgenerators.moddesc}" />
+		<replace file="output/mekanismgenerators/mcmod.info" token="@MODVERSION@" value="${version.mod}" />
+		<replace file="output/mekanismgenerators/mcmod.info" token="@MCVERSION@" value="${version.minecraft}" />
+		<replace file="output/mekanismgenerators/mcmod.info" token="@MODCREDITS@" value="${package.mekanismgenerators.modcredits}" />
+		<copy todir="output/mekanismgenerators">
+			<fileset dir="${dir.mcp}/reobf/minecraft">
+				<include name="mekanism/generators/**"/>
+			</fileset>
+		</copy>
+		<jar destfile="output/${file.mekanismgenerators}.jar" basedir="output/mekanismgenerators"/>
 	</target>
 </project>

@@ -138,7 +138,7 @@ public class TileEntityFactory extends TileEntityElectricBlock implements IEnerg
 					IElectricItem item = (IElectricItem)inventory[1].getItem();
 					if(item.canProvideEnergy(inventory[1]))
 					{
-						double gain = ElectricItem.discharge(inventory[1], (int)((MAX_ELECTRICITY - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
+						double gain = ElectricItem.discharge(inventory[1], (int)((MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY) - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
 						setJoules(electricityStored + gain);
 					}
 				}
@@ -765,12 +765,14 @@ public class TileEntityFactory extends TileEntityElectricBlock implements IEnerg
 	}
 	
 	@Override
+	@SideOnly(Side.CLIENT)
 	public Sound getSound()
 	{
 		return audio;
 	}
 	
 	@Override
+	@SideOnly(Side.CLIENT)
 	public void removeSound()
 	{
 		audio = null;

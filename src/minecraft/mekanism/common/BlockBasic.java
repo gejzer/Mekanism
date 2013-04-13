@@ -95,7 +95,7 @@ public class BlockBasic extends Block
     	{
     		if(entityplayer.isSneaking())
     		{
-    			entityplayer.openGui(Mekanism.instance, 1, world, x, y, z);
+    			entityplayer.openGui(Mekanism.instance, 19, world, x, y, z);
     			return true;
     		}
     	}

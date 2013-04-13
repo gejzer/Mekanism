@@ -3,10 +3,13 @@ package mekanism.client;
 
 import mekanism.common.CommonProxy;
 import mekanism.common.EntityObsidianTNT;
+import mekanism.common.IElectricChest;
+import mekanism.common.InventoryElectricChest;
 import mekanism.common.ItemPortableTeleporter;
 import mekanism.common.Mekanism;
 import mekanism.common.TileEntityAdvancedElectricMachine;
 import mekanism.common.TileEntityControlPanel;
+import mekanism.common.TileEntityElectricChest;
 import mekanism.common.TileEntityElectricMachine;
 import mekanism.common.TileEntityElectricPump;
 import mekanism.common.TileEntityEnergyCube;
@@ -56,6 +59,59 @@ public class ClientProxy extends CommonProxy
 	}
 	
 	@Override
+	public void openElectricChest(EntityPlayer entityplayer, int id, int windowId, boolean isBlock, int x, int y, int z) 
+	{
+		TileEntityElectricChest tileEntity = (TileEntityElectricChest)entityplayer.worldObj.getBlockTileEntity(x, y, z);
+		
+		if(id == 0)
+		{
+			if(isBlock)
+			{
+	    		FMLClientHandler.instance().displayGuiScreen(entityplayer, new GuiElectricChest(entityplayer.inventory, tileEntity));
+	    		entityplayer.openContainer.windowId = windowId;
+			}
+			else {
+				FMLClientHandler.instance().getClient().sndManager.playSoundFX("random.chestopen", 1.0F, 1.0F);
+				ItemStack stack = entityplayer.getCurrentEquippedItem();
+				if(stack != null && stack.getItem() instanceof IElectricChest && ((IElectricChest)stack.getItem()).isElectricChest(stack))
+				{
+    				InventoryElectricChest inventory = new InventoryElectricChest(stack);
+		    		FMLClientHandler.instance().displayGuiScreen(entityplayer, new GuiElectricChest(entityplayer.inventory, inventory));
+		    		entityplayer.openContainer.windowId = windowId;
+				}
+			}
+		}
+		else if(id == 1)
+		{
+			if(isBlock)
+			{
+				FMLClientHandler.instance().displayGuiScreen(entityplayer, new GuiPasswordEnter(tileEntity));
+			}
+			else {
+				ItemStack stack = entityplayer.getCurrentEquippedItem();
+				if(stack != null && stack.getItem() instanceof IElectricChest && ((IElectricChest)stack.getItem()).isElectricChest(stack))
+				{
+					FMLClientHandler.instance().displayGuiScreen(entityplayer, new GuiPasswordEnter(stack));
+				}
+			}
+		}
+		else if(id == 2)
+		{
+			if(isBlock)
+			{
+				FMLClientHandler.instance().displayGuiScreen(entityplayer, new GuiPasswordModify(tileEntity));
+			}
+			else {
+				ItemStack stack = entityplayer.getCurrentEquippedItem();
+				if(stack != null && stack.getItem() instanceof IElectricChest && ((IElectricChest)stack.getItem()).isElectricChest(stack))
+				{
+					FMLClientHandler.instance().displayGuiScreen(entityplayer, new GuiPasswordModify(stack));
+				}
+			}
+		}
+	}
+	
+	@Override
 	public void registerSpecialTileEntities() 
 	{
 		ClientRegistry.registerTileEntity(TileEntityTheoreticalElementizer.class, "TheoreticalElementizer", new RenderTheoreticalElementizer());
@@ -63,6 +119,7 @@ public class ClientProxy extends CommonProxy
 		ClientRegistry.registerTileEntity(TileEntityPressurizedTube.class, "PressurizedTube", new RenderPressurizedTube());
 		ClientRegistry.registerTileEntity(TileEntityUniversalCable.class, "UniversalCable", new RenderUniversalCable());
 		ClientRegistry.registerTileEntity(TileEntityElectricPump.class, "ElectricPump", new RenderElectricPump());
+		ClientRegistry.registerTileEntity(TileEntityElectricChest.class, "ElectricChest", new RenderElectricChest());
 	}
 	
 	@Override
@@ -85,17 +142,6 @@ public class ClientProxy extends CommonProxy
 	public World getClientWorld()
 	{
 		return FMLClientHandler.instance().getClient().theWorld;
-	}
-	
-	@Override
-	public void loadUtilities()
-	{
-		if(FMLClientHandler.instance().getClient().gameSettings.snooperEnabled)
-		{
-			new ThreadSendData();
-		}
-		
-		System.out.println("[Mekanism] Utility initiative complete.");
 	}
 	
 	@Override
@@ -145,6 +191,10 @@ public class ClientProxy extends CommonProxy
 				return new GuiEnergizedSmelter(player.inventory, (TileEntityElectricMachine)tileEntity);
 			case 17:
 				return new GuiElectricPump(player.inventory, (TileEntityElectricPump)tileEntity);
+			case 19:
+				return new GuiPasswordEnter((TileEntityElectricChest)tileEntity);
+			case 20:
+				return new GuiPasswordModify((TileEntityElectricChest)tileEntity);
 		}
 		return null;
 	}

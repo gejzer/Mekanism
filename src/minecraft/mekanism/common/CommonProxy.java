@@ -26,7 +26,20 @@ public class CommonProxy
 		GameRegistry.registerTileEntity(TileEntityPressurizedTube.class, "PressurizedTube");
 		GameRegistry.registerTileEntity(TileEntityUniversalCable.class, "UniversalCable");
 		GameRegistry.registerTileEntity(TileEntityElectricPump.class, "ElectricPump");
+		GameRegistry.registerTileEntity(TileEntityElectricChest.class, "ElectricChest");
 	}
+	
+	/**
+	 * Handles an ELECTRIC_CHEST_CLIENT_OPEN packet via the proxy, not handled on the server-side.
+	 * @param entityplayer - player the packet was sent from
+	 * @param id - the electric chest gui ID to open
+	 * @param windowId - the container-specific window ID
+	 * @param isBlock - if the chest is a block
+	 * @param x - x coordinate
+	 * @param y - y coordinate
+	 * @param z - z coordinate
+	 */
+	public void openElectricChest(EntityPlayer entityplayer, int id, int windowId, boolean isBlock, int x, int y, int z) {}
 	
 	/**
 	 * Register and load client-only render information.
@@ -81,11 +94,6 @@ public class CommonProxy
 	  	Mekanism.TO_BC = Mekanism.configuration.get(Configuration.CATEGORY_GENERAL, "MJToJoules", .04).getDouble(.04);
 	  	Mekanism.configuration.save();
 	}
-	
-	/**
-	 * Load and initiate utilities for the mod's proxy.
-	 */
-	public void loadUtilities() {}
 	
 	/**
 	 * Set up and load the tick handlers.

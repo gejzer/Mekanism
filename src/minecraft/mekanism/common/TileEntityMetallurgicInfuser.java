@@ -131,7 +131,7 @@ public class TileEntityMetallurgicInfuser extends TileEntityElectricBlock implem
 					IElectricItem item = (IElectricItem)inventory[4].getItem();
 					if(item.canProvideEnergy(inventory[4]))
 					{
-						double gain = ElectricItem.discharge(inventory[4], (int)((MAX_ELECTRICITY - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
+						double gain = ElectricItem.discharge(inventory[4], (int)((MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY) - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
 						setJoules(electricityStored + gain);
 					}
 				}
@@ -691,12 +691,14 @@ public class TileEntityMetallurgicInfuser extends TileEntityElectricBlock implem
 	}
 	
 	@Override
+	@SideOnly(Side.CLIENT)
 	public Sound getSound()
 	{
 		return audio;
 	}
 	
 	@Override
+	@SideOnly(Side.CLIENT)
 	public void removeSound()
 	{
 		audio = null;

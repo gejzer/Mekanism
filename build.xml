@@ -143,8 +143,10 @@
 		<exec dir="${dir.mcp}" executable="bash" osfamily="unix">
 			<arg line="reobfuscate_srg.sh" />
 		</exec>
+		
 	</target>
-	<target name="package">
+	
+	<target name="package" depends="build">
 		<!--mekanism-->
 		<delete dir="output/mekanism" />
 		<mkdir dir="output/mekanism" />

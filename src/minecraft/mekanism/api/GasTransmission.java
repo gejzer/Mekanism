@@ -2,15 +2,13 @@ package mekanism.api;
 
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.common.ForgeDirection;
-import universalelectricity.core.vector.Vector3;
-import universalelectricity.core.vector.VectorHelper;
 
 /**
  * A handy class containing several utilities for efficient gas transfer.
  * @author AidanBrady
  *
  */
-public class GasTransmission 
+public final class GasTransmission 
 {
     /**
      * Gets all the tubes around a tile entity.
@@ -23,7 +21,7 @@ public class GasTransmission
     	
     	for(ForgeDirection orientation : ForgeDirection.VALID_DIRECTIONS)
     	{
-			TileEntity tube = VectorHelper.getTileEntityFromSide(tileEntity.worldObj, new Vector3(tileEntity.xCoord, tileEntity.yCoord, tileEntity.zCoord), orientation);
+			TileEntity tube = Object3D.get(tileEntity).getFromSide(orientation).getTileEntity(tileEntity.worldObj);
 			
 			if(tube instanceof IPressurizedTube && ((IPressurizedTube)tube).canTransferGas(tileEntity))
 			{
@@ -45,7 +43,7 @@ public class GasTransmission
     	
     	for(ForgeDirection orientation : ForgeDirection.VALID_DIRECTIONS)
     	{
-			TileEntity acceptor = VectorHelper.getTileEntityFromSide(tileEntity.worldObj, new Vector3(tileEntity.xCoord, tileEntity.yCoord, tileEntity.zCoord), orientation);
+			TileEntity acceptor = Object3D.get(tileEntity).getFromSide(orientation).getTileEntity(tileEntity.worldObj);
 			
 			if(acceptor instanceof IGasAcceptor)
 			{
@@ -67,7 +65,7 @@ public class GasTransmission
     	
     	for(ForgeDirection orientation : ForgeDirection.VALID_DIRECTIONS)
     	{
-			TileEntity connection = VectorHelper.getTileEntityFromSide(tileEntity.worldObj, new Vector3(tileEntity.xCoord, tileEntity.yCoord, tileEntity.zCoord), orientation);
+			TileEntity connection = Object3D.get(tileEntity).getFromSide(orientation).getTileEntity(tileEntity.worldObj);
 			
 			if(connection instanceof ITubeConnection)
 			{
@@ -88,7 +86,7 @@ public class GasTransmission
      */
     public static int emitGasToNetwork(EnumGas type, int amount, TileEntity sender, ForgeDirection facing)
     {
-    	TileEntity pointer = VectorHelper.getTileEntityFromSide(sender.worldObj, new Vector3(sender.xCoord, sender.yCoord, sender.zCoord), facing);
+    	TileEntity pointer = Object3D.get(sender).getFromSide(facing).getTileEntity(sender.worldObj);
     	
     	if(pointer instanceof IPressurizedTube)
     	{

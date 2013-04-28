@@ -7,9 +7,13 @@ import net.minecraft.entity.player.InventoryPlayer;
 
 import org.lwjgl.opengl.GL11;
 
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
+
 import universalelectricity.core.electricity.ElectricityDisplay;
 import universalelectricity.core.electricity.ElectricityDisplay.ElectricUnit;
 
+@SideOnly(Side.CLIENT)
 public class GuiHeatGenerator extends GuiContainer
 {
 	public TileEntityHeatGenerator tileEntity;
@@ -29,7 +33,7 @@ public class GuiHeatGenerator extends GuiContainer
         fontRenderer.drawString(tileEntity.fullName, 45, 6, 0x404040);
         fontRenderer.drawString("Inventory", 8, (ySize - 96) + 2, 0x404040);
         fontRenderer.drawString(ElectricityDisplay.getDisplayShort(tileEntity.electricityStored, ElectricUnit.JOULES), 51, 26, 0x00CD00);
-        fontRenderer.drawString("Fuel: " + tileEntity.fuelSlot.liquidStored, 51, 35, 0x00CD00);
+        fontRenderer.drawString("Fuel: " + (tileEntity.lavaTank.getLiquid() != null ? tileEntity.lavaTank.getLiquid().amount : 0), 51, 35, 0x00CD00);
         fontRenderer.drawString(tileEntity.getVoltage() + "v", 51, 44, 0x00CD00);
     }
 

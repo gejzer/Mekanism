@@ -1,6 +1,6 @@
 package mekanism.common;
 
-import ic2.api.Ic2Recipes;
+import ic2.api.recipe.Recipes;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import mekanism.api.EnumGas;
+import mekanism.api.GasTransferProtocol.GasTransferEvent;
 import mekanism.api.InfuseObject;
 import mekanism.api.InfusionInput;
 import mekanism.api.InfusionType;
@@ -23,6 +25,7 @@ import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraftforge.common.Configuration;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.ForgeSubscribe;
 import net.minecraftforge.oredict.OreDictionary;
 import net.minecraftforge.oredict.ShapedOreRecipe;
 import net.minecraftforge.oredict.ShapelessOreRecipe;
@@ -49,11 +52,11 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 /**
- * Mekanism mod -- adds in Tools, Armor, Weapons, Machines, and Magic. Universal source.
+ * Mekanism - the mod in which no true definition fits.
  * @author AidanBrady
  *
  */
-@Mod(modid = "Mekanism", name = "Mekanism", version = "5.5.4")
+@Mod(modid = "Mekanism", name = "Mekanism", version = "5.5.5")
 @NetworkMod(channels = {"Mekanism"}, clientSideRequired = true, serverSideRequired = false, packetHandler = PacketHandler.class)
 public class Mekanism
 {
@@ -75,7 +78,7 @@ public class Mekanism
     public static Configuration configuration;
     
 	/** Mekanism version number */
-	public static Version versionNumber = new Version(5, 5, 4);
+	public static Version versionNumber = new Version(5, 5, 5);
 	
 	/** Map of Teleporters */
 	public static Map<Teleporter.Code, ArrayList<Teleporter.Coords>> teleporters = new HashMap<Teleporter.Code, ArrayList<Teleporter.Coords>>();
@@ -98,15 +101,6 @@ public class Mekanism
 	@SideOnly(Side.CLIENT)
 	/** The main SoundHandler instance that is used by all audio sources */
 	public static SoundHandler audioHandler;
-	
-	/** The IP used to connect to the Mekanism server */
-	public static String hostIP = "71.56.58.57";
-	
-	/** The port used to connect to the Mekanism server */
-	public static int hostPort = 3073;
-	
-	/** The modpack this client is using */
-	public static String modPack = "none";
     
 	//Block IDs
     public static int basicBlockID = 3000;
@@ -135,6 +129,9 @@ public class Mekanism
 	public static Item PortableTeleporter;
 	public static Item TeleportationCore;
 	public static Item Configurator;
+	public static Item LiquidEnergy;
+	public static Item LiquidHydrogen;
+	public static Item LiquidOxygen;
 	
 	//Blocks
 	public static Block BasicBlock;
@@ -319,6 +316,9 @@ public class Mekanism
 		CraftingManager.getInstance().getRecipeList().add(new ShapedOreRecipe(new ItemStack(MachineBlock, 1, 13), new Object[] {
 			"SGS", "CcC", "SSS", Character.valueOf('S'), "ingotSteel", Character.valueOf('G'), Block.glass, Character.valueOf('C'), Block.chest, Character.valueOf('c'), ControlCircuit
 		}));
+		CraftingManager.getInstance().getRecipeList().add(new ShapedOreRecipe(new ItemStack(Transmitter, 8, 2), new Object[] {
+			"O O", Character.valueOf('O'), "ingotOsmium"
+		}));
 		
 		//Factory Recipes
 		CraftingManager.getInstance().getRecipeList().add(new FactoryRecipe(MekanismUtils.getFactory(FactoryTier.BASIC, RecipeType.SMELTING), new Object[] {
@@ -435,6 +435,9 @@ public class Mekanism
 		LanguageRegistry.addName(PortableTeleporter, "Portable Teleporter");
 		LanguageRegistry.addName(TeleportationCore, "Teleportation Core");
 		LanguageRegistry.addName(Configurator, "Configurator");
+		LanguageRegistry.addName(LiquidEnergy, "Liquid Energy");
+		LanguageRegistry.addName(LiquidHydrogen, "Liquid Hydrogen");
+		LanguageRegistry.addName(LiquidOxygen, "Liquid Oxygen");
 		
 		//Localization for BasicBlock
 		LanguageRegistry.instance().addStringLocalization("tile.BasicBlock.OsmiumBlock.name", "Osmium Block");
@@ -469,6 +472,7 @@ public class Mekanism
 		//Localization for Transmitter
 		LanguageRegistry.instance().addStringLocalization("tile.Transmitter.PressurizedTube.name", "Pressurized Tube");
 		LanguageRegistry.instance().addStringLocalization("tile.Transmitter.UniversalCable.name", "Universal Cable");
+		LanguageRegistry.instance().addStringLocalization("tile.Transmitter.MechanicalPipe.name", "Mechanical Pipe");
 		
 		//Localization for EnergyCube
 		LanguageRegistry.instance().addStringLocalization("tile.EnergyCube.Basic.name", "Basic Energy Cube");
@@ -519,20 +523,23 @@ public class Mekanism
 	 * Adds and registers all items.
 	 */
 	public void addItems()
-	{
+	{	
+		//Declarations
 		configuration.load();
 		ElectricBow = (ItemElectricBow) new ItemElectricBow(configuration.getItem("ElectricBow", 11200).getInt()).setUnlocalizedName("ElectricBow");
+		
 		if(extrasEnabled == true)
 		{
 			Stopwatch = new ItemStopwatch(configuration.getItem("Stopwatch", 11202).getInt()).setUnlocalizedName("Stopwatch");
 			WeatherOrb = new ItemWeatherOrb(configuration.getItem("WeatherOrb", 11203).getInt()).setUnlocalizedName("WeatherOrb");
 		}
+		
 		Dust = new ItemDust(configuration.getItem("Dust", 11204).getInt()-256);
 		Ingot = new ItemIngot(configuration.getItem("Ingot", 11205).getInt()-256);
 		EnergyTablet = (ItemEnergized) new ItemEnergized(configuration.getItem("EnergyTablet", 11206).getInt(), 1000000, 120).setUnlocalizedName("EnergyTablet");
 		SpeedUpgrade = new ItemMachineUpgrade(configuration.getItem("SpeedUpgrade", 11207).getInt(), 0, 150).setUnlocalizedName("SpeedUpgrade");
 		EnergyUpgrade = new ItemMachineUpgrade(configuration.getItem("EnergyUpgrade", 11208).getInt(), 1000, 0).setUnlocalizedName("EnergyUpgrade");
-		//FREE ID 11209
+		LiquidEnergy = new ItemMekanism(configuration.getItem("LiquidEnergy", 11209).getInt()).setUnlocalizedName("LiquidEnergy").setCreativeTab(null);
 		AtomicDisassembler = (ItemAtomicDisassembler) new ItemAtomicDisassembler(configuration.getItem("AtomicDisassembler", 11210).getInt()).setUnlocalizedName("AtomicDisassembler");
 		AtomicCore = new ItemMekanism(configuration.getItem("AtomicCore", 11211).getInt()).setUnlocalizedName("AtomicCore");
 		EnrichedAlloy = new ItemMekanism(configuration.getItem("EnrichedAlloy", 11212).getInt()).setUnlocalizedName("EnrichedAlloy");
@@ -545,7 +552,39 @@ public class Mekanism
 		Clump = new ItemClump(configuration.getItem("Clump", 11219).getInt()-256);
 		DirtyDust = new ItemDirtyDust(configuration.getItem("DirtyDust", 11220).getInt()-256);
 		Configurator = new ItemConfigurator(configuration.getItem("Configurator", 11221).getInt()).setUnlocalizedName("Configurator");
+		LiquidHydrogen = new ItemMekanism(configuration.getItem("LiquidHydrogen", 11222).getInt()).setUnlocalizedName("LiquidHydrogen").setCreativeTab(null);
+		LiquidOxygen = new ItemMekanism(configuration.getItem("LiquidOxygen", 11223).getInt()).setUnlocalizedName("LiquidOxygen").setCreativeTab(null);
 		configuration.save();
+		
+		//Registrations
+		GameRegistry.registerItem(ElectricBow, "ElectricBow");
+	
+		if(extrasEnabled)
+		{
+			GameRegistry.registerItem(Stopwatch, "Stopwatch");
+			GameRegistry.registerItem(WeatherOrb, "WeatherOrb");
+		}
+		
+		GameRegistry.registerItem(Dust, "Dust");
+		GameRegistry.registerItem(Ingot, "Ingot");
+		GameRegistry.registerItem(EnergyTablet, "EnergyTablet");
+		GameRegistry.registerItem(SpeedUpgrade, "SpeedUpgrade");
+		GameRegistry.registerItem(EnergyUpgrade, "EnergyUpgrade");
+		GameRegistry.registerItem(LiquidEnergy, "LiquidEnergy");
+		GameRegistry.registerItem(AtomicDisassembler, "AtomicDisassembler");
+		GameRegistry.registerItem(AtomicCore, "AtomicCore");
+		GameRegistry.registerItem(EnrichedAlloy, "EnrichedAlloy");
+		GameRegistry.registerItem(StorageTank, "StorageTank");
+		GameRegistry.registerItem(ControlCircuit, "ControlCircuit");
+		GameRegistry.registerItem(EnrichedIron, "EnrichedIron");
+		GameRegistry.registerItem(CompressedCarbon, "CompressedCarbon");
+		GameRegistry.registerItem(PortableTeleporter, "PortableTeleporter");
+		GameRegistry.registerItem(TeleportationCore, "TeleportationCore");
+		GameRegistry.registerItem(Clump, "Clump");
+		GameRegistry.registerItem(DirtyDust, "DirtyDust");
+		GameRegistry.registerItem(Configurator, "Configurator");
+		GameRegistry.registerItem(LiquidHydrogen, "LiquidHydrogen");
+		GameRegistry.registerItem(LiquidOxygen, "LiquidOxygen");
 	}
 	
 	/**
@@ -613,7 +652,7 @@ public class Mekanism
 		OreDictionary.registerOre("dustDirtySilver", new ItemStack(DirtyDust, 1, 5));
 		OreDictionary.registerOre("dustDirtyObsidian", new ItemStack(DirtyDust, 1, 6));
 		
-		//for RailCraft. cj + obsidian dust = rawr
+		//for RailCraft. rc + mek = rawr
 		OreDictionary.registerOre("dustObsidian", new ItemStack(DirtyDust, 1, 6));
 		
 		OreDictionary.registerOre("clumpIron", new ItemStack(Clump, 1, 0));
@@ -654,7 +693,7 @@ public class Mekanism
 		{
 			if(!hooks.RailcraftLoaded)
 			{
-				Ic2Recipes.addMaceratorRecipe(new ItemStack(Block.obsidian), new ItemStack(DirtyDust, 1, 6));
+				Recipes.macerator.addRecipe(new ItemStack(Block.obsidian), new ItemStack(DirtyDust, 1, 6));
 			}
 		}
 		
@@ -792,7 +831,7 @@ public class Mekanism
 			
 			if(hooks.IC2Loaded)
 			{
-				Ic2Recipes.addMaceratorRecipe(new ItemStack(Ingot, 1, 2), MekanismUtils.getStackWithSize(OreDictionary.getOres("dustBronze").get(0), 1));
+				Recipes.macerator.addRecipe(new ItemStack(Ingot, 1, 2), MekanismUtils.getStackWithSize(OreDictionary.getOres("dustBronze").get(0), 1));
 			}
 			if(hooks.TELoaded)
 			{
@@ -950,7 +989,6 @@ public class Mekanism
 	@ServerStopping
 	public void serverStopping(FMLServerStoppingEvent event)
 	{
-		proxy.unloadSoundHandler();
 		teleporters.clear();
 	}
 	
@@ -964,7 +1002,6 @@ public class Mekanism
 		if(config.getAbsolutePath().contains("voltz"))
 		{
 			System.out.println("[Mekanism] Detected Voltz in root directory - hello, fellow user!");
-			modPack = "Voltz";
 		}
 	}
 	
@@ -974,6 +1011,18 @@ public class Mekanism
 		hooks = new MekanismHooks();
 		hooks.hook();
 		addIntegratedItems();
+		
+		if(!EnumGas.HYDROGEN.hasTexture())
+		{
+			EnumGas.HYDROGEN.gasItem = LiquidHydrogen;
+			EnumGas.HYDROGEN.texturePath = "/mods/mekanism/textures/items/LiquidHydrogen.png";
+		}
+		
+		if(!EnumGas.OXYGEN.hasTexture())
+		{
+			EnumGas.OXYGEN.gasItem = LiquidOxygen;
+			EnumGas.OXYGEN.texturePath = "/mods/mekanism/textures/items/LiquidOxygen.png";
+		}
 		
 		System.out.println("[Mekanism] Hooking complete.");
 		
@@ -998,7 +1047,7 @@ public class Mekanism
 		//Load proxy
 		proxy.registerRenderInformation();
 		proxy.loadConfiguration();
-		proxy.loadTickHandler();
+		proxy.loadUtilities();
 		
 		//Register to receive subscribed events
 		MinecraftForge.EVENT_BUS.register(this);
@@ -1016,5 +1065,11 @@ public class Mekanism
 		
 		//Success message
 		logger.info("[Mekanism] Mod loaded.");
+	}
+	
+	@ForgeSubscribe
+	public void onGasTransferred(GasTransferEvent event)
+	{
+		PacketHandler.sendGasTransferUpdate(event.transferProtocol.pointer, event.transferProtocol.transferType);
 	}
 }

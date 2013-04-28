@@ -64,41 +64,8 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements IEn
 	{
 		super.onUpdate();
 		
-		if(inventory[0] != null && electricityStored > 0)
-		{
-			setJoules(getJoules() - ElectricItemHelper.chargeItem(inventory[0], getJoules(), getVoltage()));
-			
-			if(Mekanism.hooks.IC2Loaded && inventory[0].getItem() instanceof IElectricItem)
-			{
-				double sent = ElectricItem.charge(inventory[0], (int)(electricityStored*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
-				setJoules(electricityStored - sent);
-			}
-		}
-		
-		if(inventory[1] != null && electricityStored < tier.MAX_ELECTRICITY)
-		{
-			setJoules(getJoules() + ElectricItemHelper.dechargeItem(inventory[1], getMaxJoules() - getJoules(), getVoltage()));
-			
-			if(Mekanism.hooks.IC2Loaded && inventory[1].getItem() instanceof IElectricItem)
-			{
-				IElectricItem item = (IElectricItem)inventory[1].getItem();
-				if(item.canProvideEnergy(inventory[1]))
-				{
-					double gain = ElectricItem.discharge(inventory[1], (int)((tier.MAX_ELECTRICITY - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
-					setJoules(electricityStored + gain);
-				}
-			}
-			else if(inventory[1].itemID == Item.redstone.itemID && electricityStored+1000 <= tier.MAX_ELECTRICITY)
-			{
-				setJoules(electricityStored + 1000);
-				inventory[1].stackSize--;
-				
-                if (inventory[1].stackSize <= 0)
-                {
-                    inventory[1] = null;
-                }
-			}
-		}
+		ChargeUtils.charge(0, this);
+		ChargeUtils.discharge(1, this);
 		
 		if(!worldObj.isRemote)
 		{
@@ -108,7 +75,8 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements IEn
 			{
 				if(tileEntity instanceof IUniversalCable)
 				{
-					setJoules(electricityStored - (Math.min(electricityStored, tier.OUTPUT) - CableUtils.emitEnergyToNetwork(Math.min(electricityStored, tier.OUTPUT), this, ForgeDirection.getOrientation(facing))));
+					setEnergy(electricityStored - (Math.min(electricityStored, tier.OUTPUT) - CableUtils.emitEnergyToNetwork(Math.min(electricityStored, tier.OUTPUT), this, ForgeDirection.getOrientation(facing))));
+					return;
 				}
 				else if((tileEntity instanceof IEnergyConductor || tileEntity instanceof IEnergyAcceptor) && Mekanism.hooks.IC2Loaded)
 				{
@@ -116,7 +84,7 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements IEn
 					{
 						EnergyTileSourceEvent event = new EnergyTileSourceEvent(this, (int)(tier.OUTPUT*Mekanism.TO_IC2));
 						MinecraftForge.EVENT_BUS.post(event);
-						setJoules(electricityStored - (tier.OUTPUT - (event.amount*Mekanism.FROM_IC2)));
+						setEnergy(electricityStored - (tier.OUTPUT - (event.amount*Mekanism.FROM_IC2)));
 					}
 				}
 				else if(isPowerReceptor(tileEntity) && Mekanism.hooks.BuildCraftLoaded)
@@ -125,7 +93,7 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements IEn
 	            	double electricityNeeded = Math.min(receptor.powerRequest(ForgeDirection.getOrientation(facing).getOpposite()), receptor.getPowerProvider().getMaxEnergyStored() - receptor.getPowerProvider().getEnergyStored())*Mekanism.FROM_BC;
 	            	float transferEnergy = (float)Math.min(electricityStored, Math.min(electricityNeeded, tier.OUTPUT));
 	            	receptor.getPowerProvider().receiveEnergy((float)(transferEnergy*Mekanism.TO_BC), ForgeDirection.getOrientation(facing).getOpposite());
-	            	setJoules(electricityStored - transferEnergy);
+	            	setEnergy(electricityStored - transferEnergy);
 				}
 			}
 			
@@ -147,17 +115,17 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements IEn
 				}
 				
 				TileEntity outputTile = VectorHelper.getTileEntityFromSide(worldObj, new Vector3(this), outputDirection);
-
+	
 				IElectricityNetwork outputNetwork = ElectricityNetworkHelper.getNetworkFromTileEntity(outputTile, outputDirection);
-
+	
 				if(outputNetwork != null && !inputNetworks.contains(outputNetwork))
 				{
-					double outputWatts = Math.min(outputNetwork.getRequest().getWatts(), Math.min(getJoules(), 10000));
-
-					if(getJoules() > 0 && outputWatts > 0 && getJoules()-outputWatts >= 0)
+					double outputWatts = Math.min(outputNetwork.getRequest().getWatts(), Math.min(getEnergy(), 10000));
+	
+					if(getEnergy() > 0 && outputWatts > 0 && getEnergy()-outputWatts >= 0)
 					{
-						outputNetwork.startProducing(this, Math.min(outputWatts, getJoules()) / getVoltage(), getVoltage());
-						setJoules(electricityStored - outputWatts);
+						outputNetwork.startProducing(this, Math.min(outputWatts, getEnergy()) / getVoltage(), getVoltage());
+						setEnergy(electricityStored - outputWatts);
 					}
 					else {
 						outputNetwork.stopProducing(this);
@@ -287,19 +255,7 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements IEn
 	}
 
 	@Override
-	public double getJoules() 
-	{
-		return electricityStored;
-	}
-
-	@Override
-	public void setJoules(double joules)
-	{
-		electricityStored = Math.max(Math.min(joules, getMaxJoules()), 0);
-	}
-
-	@Override
-	public double getMaxJoules() 
+	public double getMaxEnergy() 
 	{
 		return tier.MAX_ELECTRICITY;
 	}
@@ -453,13 +409,13 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements IEn
 	@Override
 	public void setStored(int energy)
 	{
-		setJoules(energy*Mekanism.FROM_IC2);
+		setEnergy(energy*Mekanism.FROM_IC2);
 	}
 
 	@Override
 	public int addEnergy(int amount)
 	{
-		setJoules(electricityStored + amount*Mekanism.FROM_IC2);
+		setEnergy(electricityStored + amount*Mekanism.FROM_IC2);
 		return (int)electricityStored;
 	}
 

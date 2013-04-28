@@ -9,6 +9,7 @@ import ic2.api.ElectricItem;
 import ic2.api.IElectricItem;
 import mekanism.api.EnumGas;
 import mekanism.api.IStorageTank;
+import mekanism.common.ChargeUtils;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismUtils;
 import mekanism.generators.common.BlockGenerator.GeneratorType;
@@ -43,9 +44,6 @@ public class TileEntitySolarGenerator extends TileEntityGenerator
 	}
 	
 	@Override
-	public void updateSound() {/* No super - prevent sound updating */}
-	
-	@Override
 	public int[] getSizeInventorySide(int side)
 	{
 		return new int[] {0};
@@ -68,16 +66,7 @@ public class TileEntitySolarGenerator extends TileEntityGenerator
 	{
 		super.onUpdate();
 		
-		if(inventory[0] != null && electricityStored > 0)
-		{
-			setJoules(getJoules() - ElectricItemHelper.chargeItem(inventory[0], getJoules(), getVoltage()));
-			
-			if(Mekanism.hooks.IC2Loaded && inventory[0].getItem() instanceof IElectricItem)
-			{
-				double sent = ElectricItem.charge(inventory[0], (int)(electricityStored*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
-				setJoules(electricityStored - sent);
-			}
-		}
+		ChargeUtils.charge(0, this);
 		
 		if(!worldObj.isRemote)
 		{
@@ -97,7 +86,7 @@ public class TileEntitySolarGenerator extends TileEntityGenerator
 		
 		if(canOperate())
 		{
-			setJoules(electricityStored + getEnvironmentBoost());
+			setEnergy(electricityStored + getEnvironmentBoost());
 		}
 	}
 	

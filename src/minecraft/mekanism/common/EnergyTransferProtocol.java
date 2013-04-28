@@ -8,13 +8,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import universalelectricity.core.block.IElectricityStorage;
-
-import buildcraft.api.power.IPowerReceptor;
-
 import mekanism.api.IStrictEnergyAcceptor;
+import mekanism.api.IUniversalCable;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.common.ForgeDirection;
+import buildcraft.api.power.IPowerReceptor;
+import cpw.mods.fml.common.FMLCommonHandler;
 
 public class EnergyTransferProtocol
 {
@@ -24,7 +23,7 @@ public class EnergyTransferProtocol
 	/** List of TileEntities that can take in the energy requested. */
 	public ArrayList<TileEntity> availableAcceptors = new ArrayList<TileEntity>();
 	
-	/** Map of directions gas is transferred to. */
+	/** Map of directions energy is transferred to. */
 	public Map<TileEntity, ForgeDirection> acceptorDirections = new HashMap<TileEntity, ForgeDirection>();
 	
 	/** Pointer tube of this calculation. */
@@ -44,6 +43,7 @@ public class EnergyTransferProtocol
 	 * @param head - pointer tile entity
 	 * @param orig - original tile entity
 	 * @param amount - amount of energy to distribute
+	 * @param ignored - acceptors/pipes to ignore
 	 */
 	public EnergyTransferProtocol(TileEntity head, TileEntity orig, double amount, ArrayList ignored)
 	{
@@ -83,7 +83,7 @@ public class EnergyTransferProtocol
 				{
 					if(((IStrictEnergyAcceptor)acceptor).canReceiveEnergy(ForgeDirection.getOrientation(Arrays.asList(acceptors).indexOf(acceptor)).getOpposite()))
 					{
-						if((((IElectricityStorage)acceptor).getMaxJoules() - ((IElectricityStorage)acceptor).getJoules()) > 0)
+						if((((IStrictEnergyAcceptor)acceptor).getMaxEnergy() - ((IStrictEnergyAcceptor)acceptor).getEnergy()) > 0)
 						{
 							availableAcceptors.add(acceptor);
 						}
@@ -114,7 +114,10 @@ public class EnergyTransferProtocol
 			}
 		}
 		
-		iteratedCables.add(tile);
+		if(!iteratedCables.contains(tile))
+		{
+			iteratedCables.add(tile);
+		}
 		
 		TileEntity[] tubes = CableUtils.getConnectedCables(tile);
 		
@@ -131,6 +134,22 @@ public class EnergyTransferProtocol
 	}
 	
 	/**
+	 * Updates the client-side cables for rendering.
+	 */
+	public void clientUpdate()
+	{
+		loopThrough(pointer);
+		
+		for(TileEntity tileEntity : iteratedCables)
+		{
+			if(tileEntity instanceof IUniversalCable)
+			{
+				((IUniversalCable)tileEntity).onTransfer();
+			}
+		}
+	}
+	
+	/**
 	 * Runs the protocol and distributes the energy.
 	 * @return rejected energy
 	 */
@@ -139,6 +158,8 @@ public class EnergyTransferProtocol
 		loopThrough(pointer);
 		
 		Collections.shuffle(availableAcceptors);
+		
+		double prevSending = energyToSend;
 		
 		if(!availableAcceptors.isEmpty())
 		{
@@ -177,6 +198,11 @@ public class EnergyTransferProtocol
 			}
 		}
 		
+		if(prevSending > energyToSend && FMLCommonHandler.instance().getEffectiveSide().isServer())
+		{
+			PacketHandler.sendEnergyTransferUpdate(pointer);
+		}
+		
 		return energyToSend;
 	}
 	
@@ -196,7 +222,7 @@ public class EnergyTransferProtocol
 			{
 				if(acceptor instanceof IStrictEnergyAcceptor)
 				{
-					totalNeeded += (((IElectricityStorage)acceptor).getMaxJoules() - ((IElectricityStorage)acceptor).getJoules());
+					totalNeeded += (((IStrictEnergyAcceptor)acceptor).getMaxEnergy() - ((IStrictEnergyAcceptor)acceptor).getEnergy());
 				}
 				else if(acceptor instanceof IEnergySink)
 				{

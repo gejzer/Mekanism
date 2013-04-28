@@ -1,12 +1,10 @@
 package mekanism.common;
 
-import java.util.ArrayList;
-
-import universalelectricity.core.item.ElectricItemHelper;
-import universalelectricity.core.item.IItemElectric;
-
 import ic2.api.ElectricItem;
 import ic2.api.IElectricItem;
+
+import java.util.ArrayList;
+
 import mekanism.api.EnumColor;
 import mekanism.api.EnumGas;
 import mekanism.api.IStorageTank;
@@ -14,6 +12,8 @@ import mekanism.api.SideData;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import universalelectricity.core.item.ElectricItemHelper;
+import universalelectricity.core.item.IItemElectric;
 
 import com.google.common.io.ByteArrayDataInput;
 
@@ -74,114 +74,83 @@ public abstract class TileEntityAdvancedElectricMachine extends TileEntityBasicM
 	{
 		super.onUpdate();
 		
-		boolean testActive = operatingTicks > 0;
-		
-		if(inventory[3] != null)
+		if(!worldObj.isRemote)
 		{
-			if(electricityStored < MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY))
+			ChargeUtils.discharge(3, this);
+			
+			if(inventory[4] != null)
 			{
-				setJoules(getJoules() + ElectricItemHelper.dechargeItem(inventory[3], getMaxJoules() - getJoules(), getVoltage()));
-				
-				if(Mekanism.hooks.IC2Loaded && inventory[3].getItem() instanceof IElectricItem)
+				if(inventory[4].isItemEqual(new ItemStack(Mekanism.EnergyUpgrade)) && energyMultiplier < 8)
 				{
-					IElectricItem item = (IElectricItem)inventory[3].getItem();
-					if(item.canProvideEnergy(inventory[3]))
+					if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
 					{
-						double gain = ElectricItem.discharge(inventory[3], (int)((MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY) - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
-						setJoules(electricityStored + gain);
+						upgradeTicks++;
+					}
+					else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
+					{
+						upgradeTicks = 0;
+						energyMultiplier++;
+						
+						inventory[4].stackSize--;
+						
+						if(inventory[4].stackSize == 0)
+						{
+							inventory[4] = null;
+						}
 					}
 				}
-			}
-			if(inventory[3].itemID == Item.redstone.itemID && electricityStored+1000 <= MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY))
-			{
-				setJoules(electricityStored + 1000);
-				inventory[3].stackSize--;
-				
-	            if(inventory[3].stackSize <= 0)
-	            {
-	                inventory[3] = null;
-	            }
-			}
-		}
-		
-		if(inventory[4] != null)
-		{
-			if(inventory[4].isItemEqual(new ItemStack(Mekanism.EnergyUpgrade)) && energyMultiplier < 8)
-			{
-				if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
+				else if(inventory[4].isItemEqual(new ItemStack(Mekanism.SpeedUpgrade)) && speedMultiplier < 8)
 				{
-					upgradeTicks++;
+					if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
+					{
+						upgradeTicks++;
+					}
+					else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
+					{
+						upgradeTicks = 0;
+						speedMultiplier++;
+						
+						inventory[4].stackSize--;
+						
+						if(inventory[4].stackSize == 0)
+						{
+							inventory[4] = null;
+						}
+					}
 				}
-				else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
-				{
+				else {
 					upgradeTicks = 0;
-					energyMultiplier++;
-					
-					inventory[4].stackSize--;
-					
-					if(inventory[4].stackSize == 0)
-					{
-						inventory[4] = null;
-					}
-				}
-			}
-			else if(inventory[4].isItemEqual(new ItemStack(Mekanism.SpeedUpgrade)) && speedMultiplier < 8)
-			{
-				if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
-				{
-					upgradeTicks++;
-				}
-				else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
-				{
-					upgradeTicks = 0;
-					speedMultiplier++;
-					
-					inventory[4].stackSize--;
-					
-					if(inventory[4].stackSize == 0)
-					{
-						inventory[4] = null;
-					}
 				}
 			}
 			else {
 				upgradeTicks = 0;
 			}
-		}
-		else {
-			upgradeTicks = 0;
-		}
-		
-		handleSecondaryFuel();
-		
-		if(electricityStored >= ENERGY_PER_TICK && secondaryEnergyStored >= SECONDARY_ENERGY_PER_TICK)
-		{
-			if(canOperate() && (operatingTicks+1) < MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED) && secondaryEnergyStored >= SECONDARY_ENERGY_PER_TICK)
+			
+			handleSecondaryFuel();
+			
+			if(electricityStored >= ENERGY_PER_TICK && secondaryEnergyStored >= SECONDARY_ENERGY_PER_TICK)
 			{
-				operatingTicks++;
-				secondaryEnergyStored -= SECONDARY_ENERGY_PER_TICK;
-				electricityStored -= ENERGY_PER_TICK;
-			}
-			else if((operatingTicks+1) >= MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED))
-			{
-				if(!worldObj.isRemote)
+				if(canOperate() && (operatingTicks+1) < MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED) && secondaryEnergyStored >= SECONDARY_ENERGY_PER_TICK)
+				{
+					operatingTicks++;
+					secondaryEnergyStored -= SECONDARY_ENERGY_PER_TICK;
+					electricityStored -= ENERGY_PER_TICK;
+				}
+				else if((operatingTicks+1) >= MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED))
 				{
 					operate();
+					
+					operatingTicks = 0;
+					secondaryEnergyStored -= SECONDARY_ENERGY_PER_TICK;
+					electricityStored -= ENERGY_PER_TICK;
 				}
-				
-				operatingTicks = 0;
-				secondaryEnergyStored -= SECONDARY_ENERGY_PER_TICK;
-				electricityStored -= ENERGY_PER_TICK;
 			}
-		}
-		
-		if(!canOperate())
-		{
-			operatingTicks = 0;
-		}
-		
-		if(!worldObj.isRemote)
-		{
+			
+			if(!canOperate())
+			{
+				operatingTicks = 0;
+			}
+			
 			if(canOperate() && electricityStored >= ENERGY_PER_TICK && secondaryEnergyStored >= SECONDARY_ENERGY_PER_TICK)
 			{
 				setActive(true);

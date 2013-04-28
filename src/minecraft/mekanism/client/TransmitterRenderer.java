@@ -7,7 +7,10 @@ import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.world.IBlockAccess;
 import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.client.registry.ISimpleBlockRenderingHandler;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 
+@SideOnly(Side.CLIENT)
 public class TransmitterRenderer implements ISimpleBlockRenderingHandler
 {
 	public ModelTransmitter transmitter = new ModelTransmitter();
@@ -26,6 +29,9 @@ public class TransmitterRenderer implements ISimpleBlockRenderingHandler
     			break;
     		case 1:
     			GL11.glBindTexture(3553, FMLClientHandler.instance().getClient().renderEngine.getTexture("/mods/mekanism/render/UniversalCable.png"));
+    			break;
+    		case 2:
+    			GL11.glBindTexture(3553, FMLClientHandler.instance().getClient().renderEngine.getTexture("/mods/mekanism/render/MechanicalPipe.png"));
     			break;
     	}
     	

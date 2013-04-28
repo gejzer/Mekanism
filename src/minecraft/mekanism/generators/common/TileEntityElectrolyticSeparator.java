@@ -6,6 +6,7 @@ import ic2.api.IElectricItem;
 import ic2.api.energy.tile.IEnergySink;
 
 import java.util.ArrayList;
+import java.util.Random;
 
 import mekanism.api.EnumGas;
 import mekanism.api.GasTransmission;
@@ -14,10 +15,12 @@ import mekanism.api.IGasStorage;
 import mekanism.api.IStorageTank;
 import mekanism.api.IStrictEnergyAcceptor;
 import mekanism.api.ITubeConnection;
+import mekanism.common.ChargeUtils;
 import mekanism.common.ISustainedTank;
 import mekanism.common.LiquidSlot;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismUtils;
+import mekanism.common.PacketHandler;
 import mekanism.common.RecipeHandler;
 import mekanism.common.TileEntityElectricBlock;
 import net.minecraft.block.Block;
@@ -77,155 +80,139 @@ public class TileEntityElectrolyticSeparator extends TileEntityElectricBlock imp
 	{
 		super.onUpdate();
 		
-		if(inventory[3] != null && electricityStored < MAX_ELECTRICITY)
-		{
-			setJoules(getJoules() + ElectricItemHelper.dechargeItem(inventory[3], getMaxJoules() - getJoules(), getVoltage()));
-			
-			if(Mekanism.hooks.IC2Loaded && inventory[3].getItem() instanceof IElectricItem)
-			{
-				IElectricItem item = (IElectricItem)inventory[3].getItem();
-				if(item.canProvideEnergy(inventory[3]))
-				{
-					double gain = ElectricItem.discharge(inventory[3], (int)((MAX_ELECTRICITY - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
-					setJoules(electricityStored + gain);
-				}
-			}
-			if(inventory[3].itemID == Item.redstone.itemID && electricityStored+1000 <= MAX_ELECTRICITY)
-			{
-				setJoules(electricityStored + 1000);
-				inventory[3].stackSize--;
-				
-	            if(inventory[3].stackSize <= 0)
-	            {
-	                inventory[3] = null;
-	            }
-			}
-		}
-		
-		if(inventory[0] != null)
-		{
-			LiquidStack liquid = LiquidContainerRegistry.getLiquidForFilledItem(inventory[0]);
-			
-			if(liquid != null && liquid.itemID == Block.waterStill.blockID)
-			{
-				if(waterTank.getLiquid() == null || waterTank.getLiquid().amount+liquid.amount <= waterTank.getCapacity())
-				{
-					waterTank.fill(liquid, true);
-					
-					if(inventory[0].isItemEqual(new ItemStack(Item.bucketWater)))
-					{
-						inventory[0] = new ItemStack(Item.bucketEmpty);
-					}
-					else {
-						inventory[0].stackSize--;
-						
-						if(inventory[0].stackSize == 0)
-						{
-							inventory[0] = null;
-						}
-					}
-				}
-			}
-		}
-		
 		if(!worldObj.isRemote)
 		{
-			if(inventory[1] != null && hydrogenStored > 0)
+			ChargeUtils.discharge(3, this);
+			
+			if(inventory[0] != null)
 			{
-				if(inventory[1].getItem() instanceof IStorageTank)
+				LiquidStack liquid = LiquidContainerRegistry.getLiquidForFilledItem(inventory[0]);
+				
+				if(liquid != null && liquid.itemID == Block.waterStill.blockID)
 				{
-					if(((IStorageTank)inventory[1].getItem()).getGasType(inventory[1]) == EnumGas.HYDROGEN || ((IStorageTank)inventory[1].getItem()).getGasType(inventory[1]) == EnumGas.NONE)
+					if(waterTank.getLiquid() == null || waterTank.getLiquid().amount+liquid.amount <= waterTank.getCapacity())
 					{
-						IStorageTank item = (IStorageTank)inventory[1].getItem();
+						waterTank.fill(liquid, true);
 						
-						if(item.canReceiveGas(inventory[1], EnumGas.HYDROGEN))
+						if(inventory[0].isItemEqual(new ItemStack(Item.bucketWater)))
 						{
-							int sendingGas = 0;
+							inventory[0] = new ItemStack(Item.bucketEmpty);
+						}
+						else {
+							inventory[0].stackSize--;
 							
-							if(item.getRate() <= hydrogenStored)
+							if(inventory[0].stackSize == 0)
 							{
-								sendingGas = item.getRate();
+								inventory[0] = null;
 							}
-							else if(item.getRate() > hydrogenStored)
-							{
-								sendingGas = hydrogenStored;
-							}
-							
-							int rejects = item.addGas(inventory[1], EnumGas.HYDROGEN, sendingGas);
-							setGas(EnumGas.HYDROGEN, hydrogenStored - (sendingGas - rejects));
 						}
 					}
 				}
 			}
 			
-			if(inventory[2] != null && oxygenStored > 0)
+			if(!worldObj.isRemote)
 			{
-				if(inventory[2].getItem() instanceof IStorageTank)
+				if(inventory[1] != null && hydrogenStored > 0)
 				{
-					if(((IStorageTank)inventory[2].getItem()).getGasType(inventory[2]) == EnumGas.OXYGEN || ((IStorageTank)inventory[2].getItem()).getGasType(inventory[2]) == EnumGas.NONE)
+					if(inventory[1].getItem() instanceof IStorageTank)
 					{
-						IStorageTank item = (IStorageTank)inventory[2].getItem();
-						
-						if(item.canReceiveGas(inventory[2], EnumGas.OXYGEN))
+						if(((IStorageTank)inventory[1].getItem()).getGasType(inventory[1]) == EnumGas.HYDROGEN || ((IStorageTank)inventory[1].getItem()).getGasType(inventory[1]) == EnumGas.NONE)
 						{
-							int sendingGas = 0;
+							IStorageTank item = (IStorageTank)inventory[1].getItem();
 							
-							if(item.getRate() <= oxygenStored)
+							if(item.canReceiveGas(inventory[1], EnumGas.HYDROGEN))
 							{
-								sendingGas = item.getRate();
+								int sendingGas = 0;
+								
+								if(item.getRate() <= hydrogenStored)
+								{
+									sendingGas = item.getRate();
+								}
+								else if(item.getRate() > hydrogenStored)
+								{
+									sendingGas = hydrogenStored;
+								}
+								
+								int rejects = item.addGas(inventory[1], EnumGas.HYDROGEN, sendingGas);
+								setGas(EnumGas.HYDROGEN, hydrogenStored - (sendingGas - rejects));
 							}
-							else if(item.getRate() > oxygenStored)
-							{
-								sendingGas = oxygenStored;
-							}
+						}
+					}
+				}
+				
+				if(inventory[2] != null && oxygenStored > 0)
+				{
+					if(inventory[2].getItem() instanceof IStorageTank)
+					{
+						if(((IStorageTank)inventory[2].getItem()).getGasType(inventory[2]) == EnumGas.OXYGEN || ((IStorageTank)inventory[2].getItem()).getGasType(inventory[2]) == EnumGas.NONE)
+						{
+							IStorageTank item = (IStorageTank)inventory[2].getItem();
 							
-							int rejects = item.addGas(inventory[2], EnumGas.OXYGEN, sendingGas);
-							setGas(EnumGas.OXYGEN, oxygenStored - (sendingGas - rejects));
+							if(item.canReceiveGas(inventory[2], EnumGas.OXYGEN))
+							{
+								int sendingGas = 0;
+								
+								if(item.getRate() <= oxygenStored)
+								{
+									sendingGas = item.getRate();
+								}
+								else if(item.getRate() > oxygenStored)
+								{
+									sendingGas = oxygenStored;
+								}
+								
+								int rejects = item.addGas(inventory[2], EnumGas.OXYGEN, sendingGas);
+								setGas(EnumGas.OXYGEN, oxygenStored - (sendingGas - rejects));
+							}
 						}
 					}
 				}
 			}
-		}
-		
-		if(oxygenStored < MAX_GAS && hydrogenStored < MAX_GAS && waterTank.getLiquid() != null && waterTank.getLiquid().amount-2 >= 0 && electricityStored-100 > 0)
-		{
-			waterTank.drain(2, true);
-			setJoules(electricityStored - 100);
-			setGas(EnumGas.OXYGEN, oxygenStored + 1);
-			setGas(EnumGas.HYDROGEN, hydrogenStored + 2);
-		}
-		
-		if(outputType != EnumGas.NONE && getGas(outputType) > 0 && !worldObj.isRemote)
-		{
-			setGas(outputType, getGas(outputType) - (Math.min(getGas(outputType), output) - GasTransmission.emitGasToNetwork(outputType, Math.min(getGas(outputType), output), this, ForgeDirection.getOrientation(facing))));
 			
-			TileEntity tileEntity = VectorHelper.getTileEntityFromSide(worldObj, new Vector3(this), ForgeDirection.getOrientation(facing));
-			
-			if(tileEntity instanceof IGasAcceptor)
+			if(oxygenStored < MAX_GAS && hydrogenStored < MAX_GAS && waterTank.getLiquid() != null && waterTank.getLiquid().amount-2 >= 0 && electricityStored-100 > 0)
 			{
-				if(((IGasAcceptor)tileEntity).canReceiveGas(ForgeDirection.getOrientation(facing).getOpposite(), outputType))
+				waterTank.drain(2, true);
+				setEnergy(electricityStored - 10);
+				setGas(EnumGas.OXYGEN, oxygenStored + 1);
+				setGas(EnumGas.HYDROGEN, hydrogenStored + 2);
+			}
+			
+			if(outputType != EnumGas.NONE && getGas(outputType) > 0)
+			{
+				setGas(outputType, getGas(outputType) - (Math.min(getGas(outputType), output) - GasTransmission.emitGasToNetwork(outputType, Math.min(getGas(outputType), output), this, ForgeDirection.getOrientation(facing))));
+				
+				TileEntity tileEntity = VectorHelper.getTileEntityFromSide(worldObj, new Vector3(this), ForgeDirection.getOrientation(facing));
+				
+				if(tileEntity instanceof IGasAcceptor)
 				{
-					int sendingGas = 0;
-					if(getGas(outputType) >= output)
+					if(((IGasAcceptor)tileEntity).canReceiveGas(ForgeDirection.getOrientation(facing).getOpposite(), outputType))
 					{
-						sendingGas = output;
+						int sendingGas = 0;
+						if(getGas(outputType) >= output)
+						{
+							sendingGas = output;
+						}
+						else if(getGas(outputType) < output)
+						{
+							sendingGas = getGas(outputType);
+						}
+						
+						int rejects = ((IGasAcceptor)tileEntity).transferGasToAcceptor(sendingGas, outputType);
+						
+						setGas(outputType, getGas(outputType) - (sendingGas - rejects));
 					}
-					else if(getGas(outputType) < output)
-					{
-						sendingGas = getGas(outputType);
-					}
-					
-					int rejects = ((IGasAcceptor)tileEntity).transferGasToAcceptor(sendingGas, outputType);
-					
-					setGas(outputType, getGas(outputType) - (sendingGas - rejects));
 				}
 			}
-		}
-		
-		if(dumpType != EnumGas.NONE  && getGas(dumpType) > 0)
-		{
-			setGas(dumpType, (getGas(dumpType) - 8));
-			spawnParticle();
+			
+			if(dumpType != EnumGas.NONE && getGas(dumpType) > 0)
+			{
+				setGas(dumpType, (getGas(dumpType) - 8));
+				
+				if(new Random().nextInt(3) == 2)
+				{
+					PacketHandler.sendElectrolyticSeparatorParticle(this);
+				}
+			}
 		}
 	}
 	

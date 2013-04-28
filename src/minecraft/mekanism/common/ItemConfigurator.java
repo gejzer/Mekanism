@@ -1,20 +1,18 @@
 package mekanism.common;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import org.lwjgl.input.Keyboard;
-
-import universalelectricity.core.electricity.ElectricityPack;
-import net.minecraft.entity.Entity;
+import mekanism.api.EnumColor;
+import mekanism.api.IConfigurable;
+import mekanism.api.IUpgradeManagement;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
-import mekanism.api.EnumColor;
-import mekanism.api.IConfigurable;
-import mekanism.api.IUpgradeManagement;
+import universalelectricity.core.electricity.ElectricityPack;
 
 public class ItemConfigurator extends ItemEnergized
 {
@@ -38,6 +36,13 @@ public class ItemConfigurator extends ItemEnergized
     {
     	if(!world.isRemote)
     	{
+    		if(player.isSneaking() && world.getBlockTileEntity(x, y, z) instanceof TileEntityMechanicalPipe)
+    		{
+    			TileEntityMechanicalPipe tileEntity = (TileEntityMechanicalPipe)world.getBlockTileEntity(x, y, z);
+    			tileEntity.isActive = !tileEntity.isActive;
+    			PacketHandler.sendTileEntityPacketToClients(tileEntity, 0, tileEntity.getNetworkedData(new ArrayList()));
+    			return true;
+    		}
     		if(getState(stack) == 0)
     		{
 	    		if(world.getBlockTileEntity(x, y, z) instanceof IConfigurable)
@@ -50,9 +55,9 @@ public class ItemConfigurator extends ItemEnergized
 	        			return true;
 	    			}
 	    			else {
-	    				if(getJoules(stack) >= ENERGY_PER_CONFIGURE)
+	    				if(getEnergy(stack) >= ENERGY_PER_CONFIGURE)
 	    				{
-	    					onProvide(new ElectricityPack(ENERGY_PER_CONFIGURE/120, 120), stack);
+	    					setEnergy(stack, getEnergy(stack) - ENERGY_PER_CONFIGURE);
 		    				MekanismUtils.incrementOutput(config, MekanismUtils.getBaseOrientation(side, config.getOrientation()));
 		    				player.sendChatToPlayer(EnumColor.DARK_BLUE + "[Mekanism]" + EnumColor.GREY + " Color bumped to: " + config.getSideData().get(config.getConfiguration()[MekanismUtils.getBaseOrientation(side, config.getOrientation())]).color.getName());
 		    				return true;
@@ -182,5 +187,11 @@ public class ItemConfigurator extends ItemEnergized
 	public ElectricityPack getProvideRequest(ItemStack itemStack)
 	{
 		return new ElectricityPack();
+	}
+	
+	@Override
+	public boolean canSend(ItemStack itemStack)
+	{
+		return false;
 	}
 }

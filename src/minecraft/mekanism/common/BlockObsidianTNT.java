@@ -2,6 +2,9 @@ package mekanism.common;
 
 import java.util.Random;
 
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.renderer.texture.IconRegister;
@@ -25,6 +28,7 @@ public class BlockObsidianTNT extends Block
     }
     
 	@Override
+	@SideOnly(Side.CLIENT)
 	public void registerIcons(IconRegister register)
 	{
 		icons[0] = register.registerIcon("mekanism:ObsidianTNTBottom");
@@ -33,6 +37,7 @@ public class BlockObsidianTNT extends Block
 	}
 
     @Override
+    @SideOnly(Side.CLIENT)
     public Icon getIcon(int side, int meta)
     {
         if(side == 1)
@@ -71,12 +76,6 @@ public class BlockObsidianTNT extends Block
     }
 
     @Override
-    public int quantityDropped(Random random)
-    {
-        return 1;
-    }
-
-    @Override
     public void onBlockDestroyedByExplosion(World world, int x, int y, int z, Explosion explosion)
     {
         if(!world.isRemote)
@@ -105,12 +104,6 @@ public class BlockObsidianTNT extends Block
     }
 
     @Override
-    public void onBlockClicked(World world, int x, int y, int z, EntityPlayer entityplayer)
-    {
-        super.onBlockClicked(world, x, y, z, entityplayer);
-    }
-
-    @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer entityplayer, int i1, float f1, float f2, float f3)
     {
         if(entityplayer.getCurrentEquippedItem() != null && entityplayer.getCurrentEquippedItem().itemID == Item.flintAndSteel.itemID)
@@ -119,8 +112,7 @@ public class BlockObsidianTNT extends Block
             world.setBlockToAir(x, y, z);
             return true;
         }
-        else
-        {
+        else {
             return super.onBlockActivated(world, x, y, z, entityplayer, i1, f1, f2, f3);
         }
     }

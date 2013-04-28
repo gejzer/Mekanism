@@ -12,20 +12,19 @@ import java.util.EnumSet;
 
 import com.google.common.io.ByteArrayDataInput;
 
-import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import mekanism.api.ICableOutputter;
 import mekanism.api.IUniversalCable;
 import mekanism.client.IHasSound;
-import mekanism.client.Sound;
 import mekanism.common.CableUtils;
 import mekanism.common.IActiveState;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismUtils;
 import mekanism.common.PacketHandler;
 import mekanism.common.TileEntityElectricBlock;
+import mekanism.generators.common.BlockGenerator.GeneratorType;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
@@ -44,10 +43,6 @@ import dan200.computer.api.IPeripheral;
 
 public abstract class TileEntityGenerator extends TileEntityElectricBlock implements IEnergySource, IEnergyStorage, IPowerReceptor, IPeripheral, IActiveState, IHasSound, ICableOutputter
 {
-	/** The Sound instance for this generator. */
-	@SideOnly(Side.CLIENT)
-	public Sound audio;
-	
 	/** Output per tick this generator can transfer. */
 	public int output;
 	
@@ -83,15 +78,10 @@ public abstract class TileEntityGenerator extends TileEntityElectricBlock implem
 		
 		if(worldObj.isRemote)
 		{
-			try {
-				if(Mekanism.audioHandler != null)
-				{
-					synchronized(Mekanism.audioHandler.sounds)
-					{
-						updateSound();
-					}
-				}
-			} catch(NoSuchMethodError e) {}
+			if(!(this instanceof TileEntitySolarGenerator))
+			{
+				Mekanism.proxy.registerSound(this);
+			}
 		}
 		
 		if(!worldObj.isRemote)
@@ -102,76 +92,49 @@ public abstract class TileEntityGenerator extends TileEntityElectricBlock implem
 			{
 				if(tileEntity instanceof IUniversalCable)
 				{
-					setJoules(electricityStored - (Math.min(electricityStored, output) - CableUtils.emitEnergyToNetwork(Math.min(electricityStored, output), this, ForgeDirection.getOrientation(facing))));
+					setEnergy(electricityStored - (Math.min(electricityStored, output) - CableUtils.emitEnergyToNetwork(Math.min(electricityStored, output), this, ForgeDirection.getOrientation(facing))));
 				}
-				else if((tileEntity instanceof IEnergyConductor || tileEntity instanceof IEnergyAcceptor) && Mekanism.hooks.IC2Loaded)
+				
+				if(!worldObj.isRemote)
 				{
-					if(electricityStored >= output)
+					if((tileEntity instanceof IEnergyConductor || tileEntity instanceof IEnergyAcceptor) && Mekanism.hooks.IC2Loaded)
 					{
-						EnergyTileSourceEvent event = new EnergyTileSourceEvent(this, output);
-						MinecraftForge.EVENT_BUS.post(event);
-						setJoules(electricityStored - (output - event.amount));
+						if(electricityStored >= output)
+						{
+							EnergyTileSourceEvent event = new EnergyTileSourceEvent(this, output);
+							MinecraftForge.EVENT_BUS.post(event);
+							setEnergy(electricityStored - (output - event.amount));
+						}
 					}
-				}
-				else if(isPowerReceptor(tileEntity) && Mekanism.hooks.BuildCraftLoaded)
-				{
-					IPowerReceptor receptor = (IPowerReceptor)tileEntity;
-	            	double electricityNeeded = Math.min(receptor.powerRequest(ForgeDirection.getOrientation(facing).getOpposite()), receptor.getPowerProvider().getMaxEnergyStored() - receptor.getPowerProvider().getEnergyStored())*Mekanism.FROM_BC;
-	            	float transferEnergy = (float)Math.min(electricityStored, Math.min(electricityNeeded, output));
-	            	receptor.getPowerProvider().receiveEnergy((float)(transferEnergy*Mekanism.TO_BC), ForgeDirection.getOrientation(facing).getOpposite());
-	            	setJoules(electricityStored - transferEnergy);
+					else if(isPowerReceptor(tileEntity) && Mekanism.hooks.BuildCraftLoaded)
+					{
+						IPowerReceptor receptor = (IPowerReceptor)tileEntity;
+		            	double electricityNeeded = Math.min(receptor.powerRequest(ForgeDirection.getOrientation(facing).getOpposite()), receptor.getPowerProvider().getMaxEnergyStored() - receptor.getPowerProvider().getEnergyStored())*Mekanism.FROM_BC;
+		            	float transferEnergy = (float)Math.min(electricityStored, Math.min(electricityNeeded, output));
+		            	receptor.getPowerProvider().receiveEnergy((float)(transferEnergy*Mekanism.TO_BC), ForgeDirection.getOrientation(facing).getOpposite());
+		            	setEnergy(electricityStored - transferEnergy);
+					}
 				}
 			}
 			
-			if(tileEntity instanceof IConductor)
+			if(!worldObj.isRemote && tileEntity instanceof IConductor)
 			{
 				ForgeDirection outputDirection = ForgeDirection.getOrientation(facing);
 				TileEntity outputTile = VectorHelper.getTileEntityFromSide(worldObj, new Vector3(this), outputDirection);
-
+	
 				IElectricityNetwork outputNetwork = ElectricityNetworkHelper.getNetworkFromTileEntity(outputTile, outputDirection);
-
+	
 				if(outputNetwork != null)
 				{
-					double outputWatts = Math.min(outputNetwork.getRequest().getWatts(), Math.min(getJoules(), 10000));
-
-					if(getJoules() > 0 && outputWatts > 0 && getJoules()-outputWatts >= 0)
+					double outputWatts = Math.min(outputNetwork.getRequest().getWatts(), Math.min(getEnergy(), 10000));
+	
+					if(getEnergy() > 0 && outputWatts > 0 && getEnergy()-outputWatts >= 0)
 					{
 						outputNetwork.startProducing(this, outputWatts / getVoltage(), getVoltage());
-						setJoules(electricityStored - outputWatts);
+						setEnergy(electricityStored - outputWatts);
 					}
 					else {
 						outputNetwork.stopProducing(this);
-					}
-				}
-			}
-		}
-	}
-	
-	@SideOnly(Side.CLIENT)
-	@Override
-	public void updateSound()
-	{
-		if(Mekanism.audioHandler != null)
-		{
-			synchronized(Mekanism.audioHandler.sounds)
-			{
-				if(audio == null && worldObj != null && worldObj.isRemote)
-				{
-					if(FMLClientHandler.instance().getClient().sndManager.sndSystem != null)
-					{
-						audio = Mekanism.audioHandler.getSound(fullName.replace(" ", "").replace("-","") + ".ogg", worldObj, xCoord, yCoord, zCoord);
-					}
-				}
-				
-				if(worldObj != null && worldObj.isRemote && audio != null)
-				{
-					if(!audio.isPlaying && isActive == true)
-					{
-						audio.play();
-					}
-					else if(audio.isPlaying && isActive == false)
-					{
-						audio.stopLoop();
 					}
 				}
 			}
@@ -195,9 +158,9 @@ public abstract class TileEntityGenerator extends TileEntityElectricBlock implem
 	{
 		super.invalidate();
 		
-		if(worldObj.isRemote && audio != null)
+		if(worldObj.isRemote)
 		{
-			audio.remove();
+			Mekanism.proxy.unregisterSound(this);
 		}
 	}
 	
@@ -323,14 +286,14 @@ public abstract class TileEntityGenerator extends TileEntityElectricBlock implem
 	@Override
 	public int addEnergy(int amount)
 	{
-		setJoules(electricityStored + amount*Mekanism.FROM_IC2);
+		setEnergy(electricityStored + amount*Mekanism.FROM_IC2);
 		return (int)electricityStored;
 	}
 	
 	@Override
 	public void setStored(int energy)
 	{
-		setJoules(energy*Mekanism.FROM_IC2);
+		setEnergy(energy*Mekanism.FROM_IC2);
 	}
 	
 	@Override
@@ -379,22 +342,14 @@ public abstract class TileEntityGenerator extends TileEntityElectricBlock implem
 	}
 	
 	@Override
-	@SideOnly(Side.CLIENT)
-	public Sound getSound()
-	{
-		return audio;
-	}
-	
-	@Override
-	@SideOnly(Side.CLIENT)
-	public void removeSound()
-	{
-		audio = null;
-	}
-	
-	@Override
 	public boolean canOutputTo(ForgeDirection side)
 	{
 		return side == ForgeDirection.getOrientation(facing);
+	}
+	
+	@Override
+	public String getSoundPath()
+	{
+		return fullName.replace(" ", "").replace("-","") + ".ogg";
 	}
 }

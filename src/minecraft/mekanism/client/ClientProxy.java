@@ -1,6 +1,8 @@
 package mekanism.client;
 
 
+import java.util.HashMap;
+
 import mekanism.common.CommonProxy;
 import mekanism.common.EntityObsidianTNT;
 import mekanism.common.IElectricChest;
@@ -13,10 +15,11 @@ import mekanism.common.TileEntityElectricChest;
 import mekanism.common.TileEntityElectricMachine;
 import mekanism.common.TileEntityElectricPump;
 import mekanism.common.TileEntityEnergyCube;
+import mekanism.common.TileEntityFactory;
 import mekanism.common.TileEntityGasTank;
+import mekanism.common.TileEntityMechanicalPipe;
 import mekanism.common.TileEntityMetallurgicInfuser;
 import mekanism.common.TileEntityPressurizedTube;
-import mekanism.common.TileEntityFactory;
 import mekanism.common.TileEntityTeleporter;
 import mekanism.common.TileEntityTheoreticalElementizer;
 import mekanism.common.TileEntityUniversalCable;
@@ -30,14 +33,17 @@ import net.minecraftforge.common.Configuration;
 import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.client.registry.RenderingRegistry;
+import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.registry.TickRegistry;
 import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 
 /**
  * Client proxy for the Mekanism mod.
  * @author AidanBrady
  *
  */
+@SideOnly(Side.CLIENT)
 public class ClientProxy extends CommonProxy
 {
 	public static int RENDER_ID = RenderingRegistry.getNextAvailableRenderId();
@@ -50,12 +56,34 @@ public class ClientProxy extends CommonProxy
 		
 		Mekanism.configuration.load();
 		Mekanism.enableSounds = Mekanism.configuration.get(Configuration.CATEGORY_GENERAL, "EnableSounds", true).getBoolean(true);
+		Mekanism.configuration.save();
 	}
 	
 	@Override
 	public int getArmorIndex(String string)
 	{
 		return RenderingRegistry.addNewArmourRendererPrefix(string);
+	}
+	
+	@Override
+	public void registerSound(TileEntity tileEntity) 
+	{
+		synchronized(Mekanism.audioHandler.sounds)
+		{
+			Mekanism.audioHandler.register(tileEntity);
+		}
+	}
+	
+	@Override
+	public void unregisterSound(TileEntity tileEntity) 
+	{
+		synchronized(Mekanism.audioHandler.sounds)
+		{
+			if(Mekanism.audioHandler.getFrom(tileEntity) != null)
+			{
+				Mekanism.audioHandler.getFrom(tileEntity).remove();
+			}
+		}
 	}
 	
 	@Override
@@ -73,9 +101,10 @@ public class ClientProxy extends CommonProxy
 			else {
 				FMLClientHandler.instance().getClient().sndManager.playSoundFX("random.chestopen", 1.0F, 1.0F);
 				ItemStack stack = entityplayer.getCurrentEquippedItem();
+				
 				if(stack != null && stack.getItem() instanceof IElectricChest && ((IElectricChest)stack.getItem()).isElectricChest(stack))
 				{
-    				InventoryElectricChest inventory = new InventoryElectricChest(stack);
+    				InventoryElectricChest inventory = new InventoryElectricChest(entityplayer);
 		    		FMLClientHandler.instance().displayGuiScreen(entityplayer, new GuiElectricChest(entityplayer.inventory, inventory));
 		    		entityplayer.openContainer.windowId = windowId;
 				}
@@ -120,6 +149,7 @@ public class ClientProxy extends CommonProxy
 		ClientRegistry.registerTileEntity(TileEntityUniversalCable.class, "UniversalCable", new RenderUniversalCable());
 		ClientRegistry.registerTileEntity(TileEntityElectricPump.class, "ElectricPump", new RenderElectricPump());
 		ClientRegistry.registerTileEntity(TileEntityElectricChest.class, "ElectricChest", new RenderElectricChest());
+		ClientRegistry.registerTileEntity(TileEntityMechanicalPipe.class, "MechanicalPipe", new RenderMechanicalPipe());
 	}
 	
 	@Override
@@ -130,18 +160,13 @@ public class ClientProxy extends CommonProxy
 		
 		//Register item handler
 		MinecraftForgeClient.registerItemRenderer(Mekanism.energyCubeID, new ItemRenderingHandler());
+		MinecraftForgeClient.registerItemRenderer(Mekanism.machineBlockID, new ItemRenderingHandler());
 		
 		//Register block handlers
 		RenderingRegistry.registerBlockHandler(new BlockRenderingHandler());
 		RenderingRegistry.registerBlockHandler(new TransmitterRenderer());
 		
 		System.out.println("[Mekanism] Render registrations complete.");
-	}
-	
-	@Override
-	public World getClientWorld()
-	{
-		return FMLClientHandler.instance().getClient().theWorld;
 	}
 	
 	@Override
@@ -200,12 +225,14 @@ public class ClientProxy extends CommonProxy
 	}
 	
 	@Override
-	public void loadTickHandler()
+	public void loadUtilities()
 	{
-		super.loadTickHandler();
+		super.loadUtilities();
 		
 		TickRegistry.registerTickHandler(new ClientTickHandler(), Side.CLIENT);
 		TickRegistry.registerTickHandler(new ClientPlayerTickHandler(), Side.CLIENT);
+		
+		NetworkRegistry.instance().registerConnectionHandler(new ClientConnectionHandler());
 	}
 	
 	@Override
@@ -224,13 +251,13 @@ public class ClientProxy extends CommonProxy
 		{
 			synchronized(Mekanism.audioHandler.sounds)
 			{
-				for(Sound sound : Mekanism.audioHandler.sounds)
-				{
-					sound.stopLoop();
-					Mekanism.audioHandler.soundSystem.removeSource(sound.identifier);
-				}
+				HashMap<TileEntity, Sound> sounds = new HashMap<TileEntity, Sound>();
+				sounds.putAll(Mekanism.audioHandler.sounds);
 				
-				Mekanism.audioHandler.sounds.clear();
+				for(Sound sound : sounds.values())
+				{
+					sound.remove();
+				}
 			}
 		}
 	}

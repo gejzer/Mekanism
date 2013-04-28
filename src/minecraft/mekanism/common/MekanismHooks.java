@@ -1,8 +1,14 @@
 package mekanism.common;
 
+import java.util.Map;
+
+import thermalexpansion.api.crafting.CraftingManagers;
+import thermalexpansion.api.crafting.IPulverizerRecipe;
 import universalelectricity.prefab.RecipeHelper;
 import cpw.mods.fml.common.Loader;
 import ic2.api.Ic2Recipes;
+import ic2.api.recipe.Recipes;
+import mekanism.common.RecipeHandler.Recipe;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -52,21 +58,29 @@ public final class MekanismHooks
 		
 		if(IC2Loaded)
 		{
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.OreBlock, 1, 0), new ItemStack(Mekanism.Dust, 2, 2));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.OreBlock, 1, 0), new ItemStack(Mekanism.Dust, 2, 2));
 			
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Ingot, 1, 1), new ItemStack(Mekanism.Dust, 1, 2));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Ingot, 1, 0), new ItemStack(Mekanism.Dust, 1, 3));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Ingot, 1, 3), new ItemStack(Item.lightStoneDust));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Ingot, 1, 4), new ItemStack(Mekanism.Dust, 1, 5));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Ingot, 1, 1), new ItemStack(Mekanism.Dust, 1, 2));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Ingot, 1, 0), new ItemStack(Mekanism.Dust, 1, 3));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Ingot, 1, 3), new ItemStack(Item.lightStoneDust));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Ingot, 1, 4), new ItemStack(Mekanism.Dust, 1, 5));
 			
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Clump, 1, 0), new ItemStack(Mekanism.DirtyDust, 1, 0));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Clump, 1, 1), new ItemStack(Mekanism.DirtyDust, 1, 1));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Clump, 1, 2), new ItemStack(Mekanism.DirtyDust, 1, 2));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Clump, 1, 3), new ItemStack(Mekanism.DirtyDust, 1, 3));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Clump, 1, 4), new ItemStack(Mekanism.DirtyDust, 1, 4));
-			Ic2Recipes.addMaceratorRecipe(new ItemStack(Mekanism.Clump, 1, 5), new ItemStack(Mekanism.DirtyDust, 1, 5));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Clump, 1, 0), new ItemStack(Mekanism.DirtyDust, 1, 0));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Clump, 1, 1), new ItemStack(Mekanism.DirtyDust, 1, 1));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Clump, 1, 2), new ItemStack(Mekanism.DirtyDust, 1, 2));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Clump, 1, 3), new ItemStack(Mekanism.DirtyDust, 1, 3));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Clump, 1, 4), new ItemStack(Mekanism.DirtyDust, 1, 4));
+			Recipes.macerator.addRecipe(new ItemStack(Mekanism.Clump, 1, 5), new ItemStack(Mekanism.DirtyDust, 1, 5));
 			
-			Ic2Recipes.addMatterAmplifier(Mekanism.EnrichedAlloy, 50000);
+			for(Map.Entry<ItemStack, ItemStack> entry : Recipes.macerator.getRecipes().entrySet())
+			{
+				if(!Recipe.ENRICHMENT_CHAMBER.get().containsKey(entry.getKey()))
+				{
+					RecipeHandler.addEnrichmentChamberRecipe(entry.getKey(), entry.getValue());
+				}
+			}
+			
+			Recipes.matterAmplifier.addRecipe(new ItemStack(Mekanism.EnrichedAlloy), 50000);
 			
 			System.out.println("[Mekanism] Hooked into IC2 successfully.");
 		}
@@ -99,6 +113,19 @@ public final class MekanismHooks
 			ForestryBiofuelID = getForestryItem("liquidBiofuel").itemID;
 			ForestryBiofuelBucket = getForestryItem("bucketBiofuel");
 			System.out.println("[Mekanism] Hooked into Forestry successfully.");
+		}
+		if(TELoaded)
+		{
+			for(IPulverizerRecipe recipe : CraftingManagers.pulverizerManager.getRecipeList())
+			{
+				if(recipe.getSecondaryOutput() == null)
+				{
+					if(!Recipe.ENRICHMENT_CHAMBER.get().containsKey(recipe.getInput()))
+					{
+						RecipeHandler.addEnrichmentChamberRecipe(recipe.getInput(), recipe.getPrimaryOutput());
+					}
+				}
+			}
 		}
 	}
 	

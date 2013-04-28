@@ -1,9 +1,6 @@
 package mekanism.common;
 
-import ic2.api.energy.tile.IEnergyAcceptor;
-import ic2.api.energy.tile.IEnergySource;
 import ic2.api.Direction;
-import ic2.api.energy.tile.IEnergySink;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -13,17 +10,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Map;
 
-import buildcraft.api.power.IPowerReceptor;
-
-import universalelectricity.core.block.IConnectionProvider;
-import universalelectricity.core.vector.Vector3;
-import universalelectricity.core.vector.VectorHelper;
-
+import mekanism.api.Object3D;
 import mekanism.api.EnumColor;
-import mekanism.api.ICableOutputter;
 import mekanism.api.IConfigurable;
-import mekanism.api.IStrictEnergyAcceptor;
-import mekanism.api.IUniversalCable;
 import mekanism.api.InfuseObject;
 import mekanism.common.IFactory.RecipeType;
 import mekanism.common.Tier.EnergyCubeTier;
@@ -42,7 +31,6 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeDirection;
 import net.minecraftforge.liquids.ILiquid;
 import net.minecraftforge.liquids.LiquidContainerRegistry;
-import net.minecraftforge.liquids.LiquidDictionary;
 import net.minecraftforge.liquids.LiquidStack;
 import net.minecraftforge.oredict.OreDictionary;
 import net.minecraftforge.oredict.ShapedOreRecipe;
@@ -56,12 +44,12 @@ import cpw.mods.fml.server.FMLServerHandler;
  */
 public final class MekanismUtils
 {
-	public static int[][] ADJACENT_COORDS = {{0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}};
+	public static int[][] CUBE_SIDE_MATRIX = {{3, 2, 1, 0, 5, 4}, {4, 5, 0, 1, 2, 3}, {0, 1, 3, 2, 5, 4}, {0, 1, 2, 3, 4, 5}, {0, 1, 5, 4, 3, 2}, {0, 1, 4, 5, 2, 3 }};
 	
 	/**
 	 * Checks for a new version of Mekanism.
 	 */
-	public static void checkForUpdates(EntityPlayer entityplayer)
+	public static boolean checkForUpdates(EntityPlayer entityplayer)
 	{
 		if(Mekanism.updateNotifications && Mekanism.latestVersionNumber != null && Mekanism.recentNews != null)
 		{
@@ -95,18 +83,20 @@ public final class MekanismUtils
 					entityplayer.addChatMessage(EnumColor.GREY + " Consider updating to version " + EnumColor.DARK_GREY + Mekanism.latestVersionNumber);
 					entityplayer.addChatMessage(EnumColor.GREY + " New features: " + EnumColor.INDIGO + Mekanism.recentNews);
 					entityplayer.addChatMessage(EnumColor.GREY + "------------- " + EnumColor.DARK_BLUE + "[=======]" + EnumColor.GREY + " -------------");
-					return;
+					return true;
 				}
 				else if(Version.get(Mekanism.latestVersionNumber).comparedState(Mekanism.versionNumber) == -1)
 				{
 					entityplayer.addChatMessage(EnumColor.DARK_BLUE + "[Mekanism] " + EnumColor.GREY + "Using developer build " + EnumColor.DARK_GREY + Mekanism.versionNumber);
+					return true;
 				}
 			}
 			else {
 				System.out.println("[Mekanism] Minecraft is in offline mode, could not check for updates.");
-				return;
 			}
 		}
+		
+		return false;
 	}
 	
 	/**
@@ -445,34 +435,7 @@ public final class MekanismUtils
      */
     public static int getBaseOrientation(int side, int blockFacing)
     {
-    	if(blockFacing == 3 || side == 1 || side == 0)
-    	{
-    		if(side == 2 || side == 3)
-    		{
-    			return ForgeDirection.getOrientation(side).getOpposite().ordinal();
-    		}
-    		
-    		return side;
-    	}
-    	else if(blockFacing == 2)
-    	{
-    		if(side == 2 || side == 3)
-    		{
-    			return side;
-    		}
-    		
-    		return ForgeDirection.getOrientation(side).getOpposite().ordinal();
-    	}
-    	else if(blockFacing == 4)
-    	{
-    		return getRight(side).ordinal();
-    	}
-    	else if(blockFacing == 5)
-    	{
-    		return getLeft(side).ordinal();
-    	}
-    	
-    	return side;
+    	return CUBE_SIDE_MATRIX[blockFacing][side];
     }
     
     /**
@@ -591,17 +554,6 @@ public final class MekanismUtils
     		default:
     			return Direction.XP;
     	}
-    }
-    
-    /**
-     * Gets the coordinates at the side of a certain block as an int array.
-     * @param wrapper - original block
-     * @param dir - side
-     * @return coords of the block at a certain side
-     */
-    public static int[] getCoords(BlockWrapper wrapper, ForgeDirection dir)
-    {
-        return new int[] {wrapper.x + ADJACENT_COORDS[dir.ordinal()][0], wrapper.y + ADJACENT_COORDS[dir.ordinal()][1], wrapper.z + ADJACENT_COORDS[dir.ordinal()][2]};
     }
     
     /**
@@ -756,19 +708,5 @@ public final class MekanismUtils
 		player.openContainer = new ContainerElectricChest(player.inventory, tileEntity, inventory, isBlock);
 		player.openContainer.windowId = id;
 		player.openContainer.addCraftingToCrafters(player);
-    }
-    
-    /**
-     * Gets the distance between one block and another.
-     * @param blockOne - first block
-     * @param blockTwo - second block
-     * @return distance between the two blocks
-     */
-    public static int getDistance(BlockWrapper blockOne, BlockWrapper blockTwo)
-    {
-	    int subX = blockOne.x - blockTwo.x;
-	    int subY = blockOne.y - blockTwo.y;
-	    int subZ = blockOne.z - blockTwo.z;
-	    return (int)MathHelper.sqrt_double(subX * subX + subY * subY + subZ * subZ);
     }
 }

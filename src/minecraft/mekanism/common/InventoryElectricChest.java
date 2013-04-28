@@ -1,5 +1,6 @@
 package mekanism.common;
 
+import cpw.mods.fml.common.FMLCommonHandler;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.InventoryBasic;
@@ -9,13 +10,14 @@ import net.minecraft.nbt.NBTTagList;
 
 public class InventoryElectricChest extends InventoryBasic
 {
-	public ItemStack itemStack;
+	public EntityPlayer entityPlayer;
 	public int size;
+	public boolean reading;
 	
-	public InventoryElectricChest(ItemStack itemstack)
+	public InventoryElectricChest(EntityPlayer player)
 	{
 		super("Electric Chest", false, 55);
-		itemStack = itemstack;
+		entityPlayer = player;
 		
 		read();
 	}
@@ -24,19 +26,25 @@ public class InventoryElectricChest extends InventoryBasic
     public void onInventoryChanged()
     {
         super.onInventoryChanged();
-        write();
+        
+        if(!reading)
+        {
+        	write();
+        }
     }
 	
 	@Override
     public void openChest()
     {
         read();
+        ((IElectricChest)getItemStack().getItem()).setOpen(getItemStack(), true);
     }
 
 	@Override
     public void closeChest()
     {
         write();
+        ((IElectricChest)getItemStack().getItem()).setOpen(getItemStack(), false);
     }
 	
 	public void write()
@@ -53,13 +61,15 @@ public class InventoryElectricChest extends InventoryBasic
                 tagList.appendTag(tagCompound);
             }
         }
-
-        itemStack.stackTagCompound.setTag("Items", tagList);
+        
+        ((ISustainedInventory)getItemStack().getItem()).setInventory(tagList, getItemStack());
 	}
 	
 	public void read()
 	{
-        NBTTagList tagList = itemStack.stackTagCompound.getTagList("Items");
+		reading = true;
+		
+        NBTTagList tagList = ((ISustainedInventory)getItemStack().getItem()).getInventory(getItemStack());
 
         for(int tagCount = 0; tagCount < tagList.tagCount(); tagCount++)
         {
@@ -71,5 +81,12 @@ public class InventoryElectricChest extends InventoryBasic
                 setInventorySlotContents(slotID, ItemStack.loadItemStackFromNBT(tagCompound));
             }
         }
+        
+        reading = false;
+	}
+	
+	public ItemStack getItemStack()
+	{
+		return entityPlayer.getCurrentEquippedItem();
 	}
 }

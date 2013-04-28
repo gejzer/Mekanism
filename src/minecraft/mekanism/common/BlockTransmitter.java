@@ -18,6 +18,8 @@ import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.ForgeDirection;
+import net.minecraftforge.liquids.ITankContainer;
+import net.minecraftforge.liquids.LiquidStack;
 
 public class BlockTransmitter extends Block
 {
@@ -36,12 +38,38 @@ public class BlockTransmitter extends Block
 	{
 		list.add(new ItemStack(i, 1, 0));
 		list.add(new ItemStack(i, 1, 1));
+		list.add(new ItemStack(i, 1, 2));
 	}
 	
 	@Override
 	public int damageDropped(int i)
 	{
 		return i;
+	}
+	
+	@Override
+	public int getLightValue(IBlockAccess world, int x, int y, int z)
+	{
+		TileEntity tileEntity = world.getBlockTileEntity(x, y, z);
+		
+		if(tileEntity instanceof TileEntityMechanicalPipe)
+		{
+			TileEntityMechanicalPipe mechanicalPipe = (TileEntityMechanicalPipe)tileEntity;
+			
+			if(mechanicalPipe.refLiquid != null)
+			{
+				if(mechanicalPipe.refLiquid.itemID == Block.lavaStill.blockID)
+				{
+					return (int)(mechanicalPipe.liquidScale*15F);
+				}
+			}
+		}
+		else if(tileEntity instanceof TileEntityUniversalCable)
+		{
+			return (int)(((TileEntityUniversalCable)tileEntity).energyScale*15F);
+		}
+		
+		return 0;
 	}
 	
 	@Override
@@ -113,6 +141,38 @@ public class BlockTransmitter extends Block
 					}
 				}
 			}
+			else if(world.getBlockMetadata(x, y, z) == 2)
+			{
+				TileEntity[] connectedPipes = PipeUtils.getConnectedPipes(tileEntity);
+				ITankContainer[] connectedAcceptors = PipeUtils.getConnectedAcceptors(tileEntity);
+				
+				for(ITankContainer container : connectedAcceptors)
+				{
+					if(container != null)
+					{
+						int side = Arrays.asList(connectedAcceptors).indexOf(container);
+						
+						if(container.getTanks(ForgeDirection.getOrientation(side).getOpposite()).length != 0)
+						{
+							connectable[side] = true;
+						}
+						else if(container.getTank(ForgeDirection.getOrientation(side).getOpposite(), new LiquidStack(-1, 1000)) != null)
+						{
+							connectable[side] = true;
+						}
+					}
+				}
+				
+				for(TileEntity tile : connectedPipes)
+				{
+					if(tile != null)
+					{
+						int side = Arrays.asList(connectedPipes).indexOf(tile);
+						
+						connectable[side] = true;
+					}
+				}
+			}
 			
 			if(connectable[0])
 			{
@@ -177,6 +237,8 @@ public class BlockTransmitter extends Block
 				return new TileEntityPressurizedTube();
 			case 1:
 				return new TileEntityUniversalCable();
+			case 2:
+				return new TileEntityMechanicalPipe();
 			default:
 				return null;
 		}

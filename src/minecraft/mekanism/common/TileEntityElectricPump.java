@@ -12,12 +12,16 @@ import buildcraft.api.core.Position;
 
 import com.google.common.io.ByteArrayDataInput;
 
+import ic2.api.Direction;
 import ic2.api.ElectricItem;
 import ic2.api.IElectricItem;
+import ic2.api.energy.tile.IEnergySink;
 import universalelectricity.core.item.ElectricItemHelper;
 import universalelectricity.core.item.IItemElectric;
 import universalelectricity.core.vector.Vector3;
 import universalelectricity.core.vector.VectorHelper;
+import mekanism.api.Object3D;
+import mekanism.api.IStrictEnergyAcceptor;
 import mekanism.api.InfusionType;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
@@ -32,19 +36,16 @@ import net.minecraftforge.liquids.LiquidContainerRegistry;
 import net.minecraftforge.liquids.LiquidStack;
 import net.minecraftforge.liquids.LiquidTank;
 
-public class TileEntityElectricPump extends TileEntityElectricBlock implements ITankContainer, ISustainedTank
+public class TileEntityElectricPump extends TileEntityElectricBlock implements ITankContainer, ISustainedTank, IEnergySink, IStrictEnergyAcceptor
 {
 	/** This pump's tank */
 	public LiquidTank liquidTank;
 	
 	/** The nodes that have full sources near them or in them */
-	public Set<BlockWrapper> recurringNodes = new HashSet<BlockWrapper>();
+	public Set<Object3D> recurringNodes = new HashSet<Object3D>();
 	
 	/** The nodes that have already been sucked up, but are held on to in order to remove dead blocks */
-	public Set<BlockWrapper> cleaningNodes = new HashSet<BlockWrapper>();
-	
-	/** Random for this pump */
-	public Random random = new Random();
+	public Set<Object3D> cleaningNodes = new HashSet<Object3D>();
 	
 	public TileEntityElectricPump()
 	{
@@ -56,33 +57,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 	@Override
 	public void onUpdate()
 	{
-		if(inventory[2] != null)
-		{
-			if(electricityStored < MAX_ELECTRICITY)
-			{
-				setJoules(getJoules() + ElectricItemHelper.dechargeItem(inventory[2], getMaxJoules() - getJoules(), getVoltage()));
-				
-				if(Mekanism.hooks.IC2Loaded && inventory[2].getItem() instanceof IElectricItem)
-				{
-					IElectricItem item = (IElectricItem)inventory[2].getItem();
-					if(item.canProvideEnergy(inventory[2]))
-					{
-						double gain = ElectricItem.discharge(inventory[2], (int)((MAX_ELECTRICITY - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
-						setJoules(electricityStored + gain);
-					}
-				}
-			}
-			if(inventory[2].itemID == Item.redstone.itemID && electricityStored+1000 <= MAX_ELECTRICITY)
-			{
-				setJoules(electricityStored + 1000);
-				inventory[2].stackSize--;
-				
-	            if(inventory[2].stackSize <= 0)
-	            {
-	                inventory[2] = null;
-	            }
-			}
-		}
+		ChargeUtils.discharge(2, this);
 		
 		if(inventory[0] != null)
 		{
@@ -130,12 +105,16 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 				if(suck(true))
 				{
 					clean(true);
+					PacketHandler.sendTileEntityPacketToClients(this, 50, getNetworkedData(new ArrayList()));
 				}
 				else {
+					clean(true);
 					cleaningNodes.clear();
 				}
 			}
 		}
+		
+		super.onUpdate();
 		
 		if(liquidTank.getLiquid() != null) 
 		{
@@ -158,20 +137,23 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 	
 	public boolean suck(boolean take)
 	{
-		List<BlockWrapper> tempPumpList = Arrays.asList(recurringNodes.toArray(new BlockWrapper[recurringNodes.size()]));
+		List<Object3D> tempPumpList = Arrays.asList(recurringNodes.toArray(new Object3D[recurringNodes.size()]));
 		Collections.shuffle(tempPumpList);
 		
-		for(BlockWrapper wrapper : cleaningNodes)
+		for(ForgeDirection orientation : ForgeDirection.VALID_DIRECTIONS)
 		{
-			if(MekanismUtils.isLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z))
+			Object3D wrapper = Object3D.get(this).getFromSide(orientation);
+			
+			if(MekanismUtils.isLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord))
 			{
-				if(liquidTank.getLiquid() == null || MekanismUtils.getLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z).isLiquidEqual(liquidTank.getLiquid()))
+				if(liquidTank.getLiquid() == null || MekanismUtils.getLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord).isLiquidEqual(liquidTank.getLiquid()))
 				{
 					if(take)
 					{
-						setJoules(electricityStored - 100);
-						liquidTank.fill(MekanismUtils.getLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z), true);
-						worldObj.setBlockToAir(wrapper.x, wrapper.y, wrapper.z);
+						setEnergy(electricityStored - 100);
+						recurringNodes.add(new Object3D(wrapper.xCoord, wrapper.yCoord, wrapper.zCoord));
+						liquidTank.fill(MekanismUtils.getLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord), true);
+						worldObj.setBlockToAir(wrapper.xCoord, wrapper.yCoord, wrapper.zCoord);
 					}
 					
 					return true;
@@ -179,64 +161,60 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 			}
 		}
 		
-		for(BlockWrapper wrapper : tempPumpList)
+		for(Object3D wrapper : cleaningNodes)
 		{
-			if(MekanismUtils.isLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z))
+			if(MekanismUtils.isLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord))
 			{
-				if(liquidTank.getLiquid() == null || MekanismUtils.getLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z).isLiquidEqual(liquidTank.getLiquid()))
+				if(liquidTank.getLiquid() != null && MekanismUtils.getLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord).isLiquidEqual(liquidTank.getLiquid()))
 				{
 					if(take)
 					{
-						setJoules(electricityStored - 100);
-						liquidTank.fill(MekanismUtils.getLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z), true);
-						worldObj.setBlockToAir(wrapper.x, wrapper.y, wrapper.z);
+						setEnergy(electricityStored - 100);
+						liquidTank.fill(MekanismUtils.getLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord), true);
+						worldObj.setBlockToAir(wrapper.xCoord, wrapper.yCoord, wrapper.zCoord);
 					}
 					
 					return true;
 				}
 			}
-			else if(MekanismUtils.isDeadLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z))
+		}
+		
+		for(Object3D wrapper : tempPumpList)
+		{
+			if(MekanismUtils.isLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord))
 			{
-				if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, wrapper.x, wrapper.y, wrapper.z) == liquidTank.getLiquid().itemID)
+				if(liquidTank.getLiquid() == null || MekanismUtils.getLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord).isLiquidEqual(liquidTank.getLiquid()))
 				{
 					if(take)
 					{
-						worldObj.setBlockToAir(wrapper.x, wrapper.y, wrapper.z);
+						setEnergy(electricityStored - 100);
+						liquidTank.fill(MekanismUtils.getLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord), true);
+						worldObj.setBlockToAir(wrapper.xCoord, wrapper.yCoord, wrapper.zCoord);
 					}
+					
+					return true;
 				}
 			}
 			
 			for(ForgeDirection orientation : ForgeDirection.VALID_DIRECTIONS)
 			{
-				int x = MekanismUtils.getCoords(wrapper, orientation)[0];
-				int y = MekanismUtils.getCoords(wrapper, orientation)[1];
-				int z = MekanismUtils.getCoords(wrapper, orientation)[2];
+				Object3D side = wrapper.getFromSide(orientation);
 				
-				if(MekanismUtils.getDistance(BlockWrapper.get(this), new BlockWrapper(x, y, z)) <= 80)
+				if(Object3D.get(this).distanceTo(side) <= 80)
 				{
-					if(MekanismUtils.isLiquid(worldObj, x, y, z))
+					if(MekanismUtils.isLiquid(worldObj, side.xCoord, side.yCoord, side.zCoord))
 					{
-						if(liquidTank.getLiquid() == null || MekanismUtils.getLiquid(worldObj, x, y, z).isLiquidEqual(liquidTank.getLiquid()))
+						if(liquidTank.getLiquid() == null || MekanismUtils.getLiquid(worldObj, side.xCoord, side.yCoord, side.zCoord).isLiquidEqual(liquidTank.getLiquid()))
 						{
 							if(take)
 							{
-								setJoules(electricityStored - 100);
-								recurringNodes.add(new BlockWrapper(x, y, z));
-								liquidTank.fill(MekanismUtils.getLiquid(worldObj, x, y, z), true);
-								worldObj.setBlockToAir(x, y, z);
+								setEnergy(electricityStored - 100);
+								recurringNodes.add(side);
+								liquidTank.fill(MekanismUtils.getLiquid(worldObj, side.xCoord, side.yCoord, side.zCoord), true);
+								worldObj.setBlockToAir(side.xCoord, side.yCoord, side.zCoord);
 							}
 							
 							return true;
-						}
-					}
-					else if(MekanismUtils.isDeadLiquid(worldObj, x, y, z))
-					{
-						if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, x, y, z) == liquidTank.getLiquid().itemID)
-						{
-							if(take)
-							{
-								worldObj.setBlockToAir(x, y, z);
-							}
 						}
 					}
 				}
@@ -244,42 +222,6 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 			
 			cleaningNodes.add(wrapper);
 			recurringNodes.remove(wrapper);
-		}
-		
-		for(ForgeDirection orientation : ForgeDirection.VALID_DIRECTIONS)
-		{
-			if(orientation != ForgeDirection.UP)
-			{
-				int x = MekanismUtils.getCoords(BlockWrapper.get(this), orientation)[0];
-				int y = MekanismUtils.getCoords(BlockWrapper.get(this), orientation)[1];
-				int z = MekanismUtils.getCoords(BlockWrapper.get(this), orientation)[2];
-				
-				if(MekanismUtils.isLiquid(worldObj, x, y, z))
-				{
-					if(liquidTank.getLiquid() == null || MekanismUtils.getLiquid(worldObj, x, y, z).isLiquidEqual(liquidTank.getLiquid()))
-					{
-						if(take)
-						{
-							setJoules(electricityStored - 100);
-							recurringNodes.add(new BlockWrapper(x, y, z));
-							liquidTank.fill(MekanismUtils.getLiquid(worldObj, x, y, z), true);
-							worldObj.setBlockToAir(x, y, z);
-						}
-						
-						return true;
-					}
-				}
-				else if(MekanismUtils.isDeadLiquid(worldObj, x, y, z))
-				{
-					if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, x, y, z) == liquidTank.getLiquid().itemID)
-					{
-						if(take)
-						{
-							worldObj.setBlockToAir(x, y, z);
-						}
-					}
-				}
-			}
 		}
 		
 		return false;
@@ -290,31 +232,48 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 		boolean took = false;
 		if(!worldObj.isRemote)
 		{
-			for(BlockWrapper wrapper : cleaningNodes)
+			for(Object3D wrapper : cleaningNodes)
 			{
-				if(MekanismUtils.isDeadLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z))
+				if(MekanismUtils.isDeadLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord))
 				{
-					if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, wrapper.x, wrapper.y, wrapper.z) == liquidTank.getLiquid().itemID)
+					if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord) == liquidTank.getLiquid().itemID)
 					{
 						took = true;
 						if(take)
 						{
-							worldObj.setBlockToAir(wrapper.x, wrapper.y, wrapper.z);
+							worldObj.setBlockToAir(wrapper.xCoord, wrapper.yCoord, wrapper.zCoord);
 						}
 					}
 				}
 			}
 			
-			for(BlockWrapper wrapper : recurringNodes)
+			for(Object3D wrapper : recurringNodes)
 			{
-				if(MekanismUtils.isDeadLiquid(worldObj, wrapper.x, wrapper.y, wrapper.z))
+				if(MekanismUtils.isDeadLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord))
 				{
-					if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, wrapper.x, wrapper.y, wrapper.z) == liquidTank.getLiquid().itemID)
+					if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord) == liquidTank.getLiquid().itemID)
 					{
 						took = true;
 						if(take)
 						{
-							worldObj.setBlockToAir(wrapper.x, wrapper.y, wrapper.z);
+							worldObj.setBlockToAir(wrapper.xCoord, wrapper.yCoord, wrapper.zCoord);
+						}
+					}
+				}
+			}
+			
+			for(ForgeDirection orientation : ForgeDirection.VALID_DIRECTIONS)
+			{
+				Object3D wrapper = Object3D.get(this).getFromSide(orientation);
+				
+				if(MekanismUtils.isDeadLiquid(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord))
+				{
+					if(liquidTank.getLiquid() != null && MekanismUtils.getLiquidId(worldObj, wrapper.xCoord, wrapper.yCoord, wrapper.zCoord) == liquidTank.getLiquid().itemID)
+					{
+						took = true;
+						if(take)
+						{
+							worldObj.setBlockToAir(wrapper.xCoord, wrapper.yCoord, wrapper.zCoord);
 						}
 					}
 				}
@@ -329,14 +288,17 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 	{
 		super.handlePacketData(dataStream);
 		
-		try {
+		if(dataStream.readInt() == 1)
+		{
 			int amount = dataStream.readInt();
 			int itemID = dataStream.readInt();
 			int itemMeta = dataStream.readInt();
-			
+		
 			liquidTank.setLiquid(new LiquidStack(itemID, amount, itemMeta));
-			
-		} catch(Exception e) {}
+		}
+		else {
+			liquidTank.setLiquid(null);
+		}
 		
 		MekanismUtils.updateBlock(worldObj, xCoord, yCoord, zCoord);
 	}
@@ -348,9 +310,13 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 		
 		if(liquidTank.getLiquid() != null)
 		{
+			data.add(1);
 			data.add(liquidTank.getLiquid().amount);
 			data.add(liquidTank.getLiquid().itemID);
 			data.add(liquidTank.getLiquid().itemMeta);
+		}
+		else {
+			data.add(0);
 		}
 		
 		return data;
@@ -378,7 +344,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
         
         NBTTagList recurringList = new NBTTagList();
         
-        for(BlockWrapper wrapper : recurringNodes)
+        for(Object3D wrapper : recurringNodes)
         {
         	NBTTagCompound tagCompound = new NBTTagCompound();
         	wrapper.write(tagCompound);
@@ -392,7 +358,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
         
         NBTTagList cleaningList = new NBTTagList();
         
-        for(BlockWrapper wrapper : cleaningNodes)
+        for(Object3D wrapper : cleaningNodes)
         {
         	NBTTagCompound tagCompound = new NBTTagCompound();
         	wrapper.write(tagCompound);
@@ -421,7 +387,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
     		
     		for(int i = 0; i < tagList.tagCount(); i++)
     		{
-    			recurringNodes.add(BlockWrapper.read((NBTTagCompound)tagList.tagAt(i)));
+    			recurringNodes.add(Object3D.read((NBTTagCompound)tagList.tagAt(i)));
     		}
     	}
     	
@@ -431,7 +397,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
     		
     		for(int i = 0; i < tagList.tagCount(); i++)
     		{
-    			cleaningNodes.add(BlockWrapper.read((NBTTagCompound)tagList.tagAt(i)));
+    			cleaningNodes.add(Object3D.read((NBTTagCompound)tagList.tagAt(i)));
     		}
     	}
     }
@@ -472,6 +438,66 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 		}
 		
 		return false;
+	}
+	
+	@Override
+	public double transferEnergyToAcceptor(double amount)
+	{
+    	double rejects = 0;
+    	double neededElectricity = MAX_ELECTRICITY-electricityStored;
+    	
+    	if(amount <= neededElectricity)
+    	{
+    		electricityStored += amount;
+    	}
+    	else {
+    		electricityStored += neededElectricity;
+    		rejects = amount-neededElectricity;
+    	}
+    	
+    	return rejects;
+	}
+	
+	@Override
+	public boolean canReceiveEnergy(ForgeDirection side)
+	{
+		return true;
+	}
+	
+	@Override
+	public int demandsEnergy() 
+	{
+		return (int)((MAX_ELECTRICITY - electricityStored)*Mekanism.TO_IC2);
+	}
+	
+	@Override
+	public int getMaxSafeInput()
+	{
+		return 2048;
+	}
+
+	@Override
+    public int injectEnergy(Direction direction, int i)
+    {
+    	double rejects = 0;
+    	double neededEnergy = MAX_ELECTRICITY-electricityStored;
+    	if(i <= neededEnergy)
+    	{
+    		electricityStored += i;
+    	}
+    	else if(i > neededEnergy)
+    	{
+    		electricityStored += neededEnergy;
+    		rejects = i-neededEnergy;
+    	}
+    	
+    	return (int)(rejects*Mekanism.TO_IC2);
+    }
+	
+	@Override
+	public boolean acceptsEnergyFrom(TileEntity emitter, Direction direction)
+	{
+		return direction.toForgeDirection() != ForgeDirection.getOrientation(facing);
 	}
 
 	@Override

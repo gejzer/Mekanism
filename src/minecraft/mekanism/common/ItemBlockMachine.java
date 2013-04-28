@@ -17,6 +17,7 @@ import ic2.api.ElectricItem;
 import ic2.api.ICustomElectricItem;
 import ic2.api.IElectricItem;
 import mekanism.api.EnumColor;
+import mekanism.api.IEnergizedItem;
 import mekanism.api.IUpgradeManagement;
 import mekanism.common.BlockMachine.MachineType;
 import net.minecraft.block.Block;
@@ -52,7 +53,7 @@ import net.minecraftforge.liquids.LiquidStack;
  * @author AidanBrady
  *
  */
-public class ItemBlockMachine extends ItemBlock implements IItemElectric, ICustomElectricItem, IUpgradeManagement, IFactory, ISustainedInventory, ISustainedTank, IElectricChest
+public class ItemBlockMachine extends ItemBlock implements IEnergizedItem, IItemElectric, ICustomElectricItem, IUpgradeManagement, IFactory, ISustainedInventory, ISustainedTank, IElectricChest
 {
 	public Block metaBlock;
 	
@@ -163,47 +164,26 @@ public class ItemBlockMachine extends ItemBlock implements IItemElectric, ICusto
 				list.add(EnumColor.PURPLE + "Speed: " + EnumColor.GREY + "x" + (getSpeedMultiplier(itemstack)+1));
 			}
 			
-			list.add(EnumColor.AQUA + "Inventory: " + EnumColor.GREY + (getInventory(itemstack) != null && getInventory(itemstack).tagList != null && !getInventory(itemstack).tagList.isEmpty()));
+			list.add(EnumColor.AQUA + "Inventory: " + EnumColor.GREY + (getInventory(itemstack) != null && getInventory(itemstack).tagCount() != 0));
 		}
 	}
 
 	@Override
 	public double getJoules(ItemStack itemStack)
 	{
-		if(itemStack.stackTagCompound == null) 
-		{ 
-			return 0; 
-		}
-		
-		double electricityStored = 0;
-		
-		if(itemStack.stackTagCompound.getTag("electricity") instanceof NBTTagFloat)
-		{
-			electricityStored = itemStack.stackTagCompound.getFloat("electricity");
-		}
-		else {
-			electricityStored = itemStack.stackTagCompound.getDouble("electricity");
-		}
-		
-		return electricityStored;
+		return getEnergy(itemStack);
 	}
 
 	@Override
 	public void setJoules(double wattHours, ItemStack itemStack)
 	{
-		if(itemStack.stackTagCompound == null)
-		{
-			itemStack.setTagCompound(new NBTTagCompound());
-		}
-
-		double electricityStored = Math.max(Math.min(wattHours, getMaxJoules(itemStack)), 0);
-		itemStack.stackTagCompound.setDouble("electricity", electricityStored);
+		setEnergy(itemStack, wattHours);
 	}
 
 	@Override
 	public double getMaxJoules(ItemStack itemStack)
 	{
-		return MekanismUtils.getEnergy(getEnergyMultiplier(itemStack), MachineType.getFromMetadata(itemStack.getItemDamage()).baseEnergy);
+		return getMaxEnergy(itemStack);
 	}
 
 	@Override
@@ -241,7 +221,7 @@ public class ItemBlockMachine extends ItemBlock implements IItemElectric, ICusto
 	
 	public double getTransferRate(ItemStack itemStack)
 	{
-		return getMaxJoules(itemStack)*0.01;
+		return getMaxTransfer(itemStack);
 	}
 	
 	@Override
@@ -360,6 +340,41 @@ public class ItemBlockMachine extends ItemBlock implements IItemElectric, ICusto
 	{
 		return 0;
 	}
+	
+	@Override
+	public void onUpdate(ItemStack itemstack, World world, Entity entity, int i, boolean flag)
+	{
+		if(isElectricChest(itemstack))
+		{
+			setPrevLidAngle(itemstack, getLidAngle(itemstack));
+			float increment = 0.1F;
+			
+		    if((!getOpen(itemstack) && getLidAngle(itemstack) > 0.0F) || (getOpen(itemstack) && getLidAngle(itemstack) < 1.0F))
+		    {
+		    	float angle = getLidAngle(itemstack);
+	
+		    	if(getOpen(itemstack))
+		    	{
+		    		setLidAngle(itemstack, getLidAngle(itemstack)+increment);
+		    	}
+		    	else {
+		    		setLidAngle(itemstack, getLidAngle(itemstack)-increment);
+		    	}
+	
+		    	if(getLidAngle(itemstack) > 1.0F)
+		    	{
+		    		setLidAngle(itemstack, 1.0F);
+		    	}
+	
+		     	float split = 0.5F;
+	
+		     	if(getLidAngle(itemstack) < 0.0F)
+		     	{
+		     		setLidAngle(itemstack, 0.0F);
+		     	}
+		    }
+		}
+	}
 
 	@Override
 	public int getEnergyMultiplier(Object... data) 
@@ -459,7 +474,7 @@ public class ItemBlockMachine extends ItemBlock implements IItemElectric, ICusto
 		 			PacketHandler.sendChestOpenToPlayer((EntityPlayerMP)entityplayer, null, 1, 0, false);
 		 		}
 		 		else {
-		 			InventoryElectricChest inventory = new InventoryElectricChest(itemstack);
+		 			InventoryElectricChest inventory = new InventoryElectricChest(entityplayer);
 		 			MekanismUtils.openElectricChestGui((EntityPlayerMP)entityplayer, null, inventory, false);
 		 		}
 			}
@@ -648,5 +663,118 @@ public class ItemBlockMachine extends ItemBlock implements IItemElectric, ICusto
 		}
 		
 		return itemStack.stackTagCompound.getBoolean("locked");
+	}
+	
+	@Override
+	public void setOpen(ItemStack itemStack, boolean open) 
+	{
+		if(itemStack.stackTagCompound == null)
+		{
+			itemStack.setTagCompound(new NBTTagCompound());
+		}
+
+		itemStack.stackTagCompound.setBoolean("open", open);
+	}
+
+	@Override
+	public boolean getOpen(ItemStack itemStack) 
+	{
+		if(itemStack.stackTagCompound == null) 
+		{ 
+			return false; 
+		}
+		
+		return itemStack.stackTagCompound.getBoolean("open");
+	}
+	
+	@Override
+	public void setLidAngle(ItemStack itemStack, float lidAngle) 
+	{
+		if(itemStack.stackTagCompound == null)
+		{
+			itemStack.setTagCompound(new NBTTagCompound());
+		}
+
+		itemStack.stackTagCompound.setFloat("lidAngle", lidAngle);
+	}
+
+	@Override
+	public float getLidAngle(ItemStack itemStack) 
+	{
+		if(itemStack.stackTagCompound == null) 
+		{ 
+			return 0.0F; 
+		}
+		
+		return itemStack.stackTagCompound.getFloat("lidAngle");
+	}
+	
+	@Override
+	public void setPrevLidAngle(ItemStack itemStack, float prevLidAngle) 
+	{
+		if(itemStack.stackTagCompound == null)
+		{
+			itemStack.setTagCompound(new NBTTagCompound());
+		}
+
+		itemStack.stackTagCompound.setFloat("prevLidAngle", prevLidAngle);
+	}
+
+	@Override
+	public float getPrevLidAngle(ItemStack itemStack) 
+	{
+		if(itemStack.stackTagCompound == null) 
+		{ 
+			return 0.0F; 
+		}
+		
+		return itemStack.stackTagCompound.getFloat("prevLidAngle");
+	}
+	
+	@Override
+	public double getEnergy(ItemStack itemStack) 
+	{
+		if(itemStack.stackTagCompound == null) 
+		{ 
+			return 0; 
+		}
+		
+		return itemStack.stackTagCompound.getDouble("electricity");
+	}
+
+	@Override
+	public void setEnergy(ItemStack itemStack, double amount) 
+	{
+		if(itemStack.stackTagCompound == null)
+		{
+			itemStack.setTagCompound(new NBTTagCompound());
+		}
+
+		double electricityStored = Math.max(Math.min(amount, getMaxJoules(itemStack)), 0);
+		itemStack.stackTagCompound.setDouble("electricity", electricityStored);
+	}
+
+	@Override
+	public double getMaxEnergy(ItemStack itemStack) 
+	{
+		return MekanismUtils.getEnergy(getEnergyMultiplier(itemStack), MachineType.getFromMetadata(itemStack.getItemDamage()).baseEnergy);
+	}
+
+	@Override
+	public double getMaxTransfer(ItemStack itemStack) 
+	{
+		return getMaxEnergy(itemStack)*0.005;
+	}
+
+	@Override
+	public boolean canReceive(ItemStack itemStack) 
+	{
+		return true;
+	}
+
+	@Override
+	public boolean canSend(ItemStack itemStack)
+	{
+		return false;
 	}
 }

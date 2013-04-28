@@ -1,17 +1,9 @@
 package mekanism.client;
 
-import java.util.ArrayList;
-
-import org.lwjgl.opengl.GL11;
-
-import cpw.mods.fml.client.FMLClientHandler;
-
-import universalelectricity.core.item.IItemElectric;
-
 import mekanism.api.EnumColor;
+import mekanism.api.IEnergizedItem;
 import mekanism.common.ContainerElectricChest;
 import mekanism.common.IElectricChest;
-import mekanism.common.InventoryElectricChest;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.TileEntityElectricChest;
@@ -21,6 +13,13 @@ import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 
+import org.lwjgl.opengl.GL11;
+
+import cpw.mods.fml.client.FMLClientHandler;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
+
+@SideOnly(Side.CLIENT)
 public class GuiElectricChest extends GuiContainer
 {
 	public TileEntityElectricChest tileEntity;
@@ -30,6 +29,7 @@ public class GuiElectricChest extends GuiContainer
 	public GuiElectricChest(InventoryPlayer inventory, TileEntityElectricChest tentity)
     {
         super(new ContainerElectricChest(inventory, tentity, null, true));
+        
         xSize+=26;
         ySize+=64;
         tileEntity = tentity;
@@ -39,6 +39,7 @@ public class GuiElectricChest extends GuiContainer
 	public GuiElectricChest(InventoryPlayer inventory, IInventory inv)
     {
         super(new ContainerElectricChest(inventory, null, inv, false));
+        
         xSize+=26;
         ySize+=64;
         itemInventory = inv;
@@ -78,7 +79,7 @@ public class GuiElectricChest extends GuiContainer
 				mc.thePlayer.openGui(Mekanism.instance, 20, mc.theWorld, tileEntity.xCoord, tileEntity.yCoord, tileEntity.zCoord);
 			}
 			else {
-				FMLClientHandler.instance().displayGuiScreen(mc.thePlayer, new GuiPasswordModify(((InventoryElectricChest)itemInventory).itemStack));
+				FMLClientHandler.instance().displayGuiScreen(mc.thePlayer, new GuiPasswordModify(mc.thePlayer.getCurrentEquippedItem()));
 			}
 		}
 	}
@@ -108,7 +109,7 @@ public class GuiElectricChest extends GuiContainer
 				
 				if(!isBlock)
 				{
-					ItemStack stack = ((InventoryElectricChest)itemInventory).itemStack;
+					ItemStack stack = mc.thePlayer.getCurrentEquippedItem();
 					((IElectricChest)stack.getItem()).setLocked(stack, !getLocked());
 				}
 			}
@@ -146,7 +147,7 @@ public class GuiElectricChest extends GuiContainer
 			return tileEntity.locked;
 		}
 		else {
-			ItemStack stack = ((InventoryElectricChest)itemInventory).itemStack;
+			ItemStack stack = mc.thePlayer.getCurrentEquippedItem();
 			return ((IElectricChest)stack.getItem()).getLocked(stack);
 		}
 	}
@@ -158,8 +159,8 @@ public class GuiElectricChest extends GuiContainer
 			return tileEntity.getScaledEnergyLevel(52);
 		}
 		else {
-			ItemStack stack = ((InventoryElectricChest)itemInventory).itemStack;
-			return (int)(((IItemElectric)stack.getItem()).getJoules(stack)*52 / ((IItemElectric)stack.getItem()).getMaxJoules(stack));
+			ItemStack stack = mc.thePlayer.getCurrentEquippedItem();
+			return (int)(((IEnergizedItem)stack.getItem()).getEnergy(stack)*52 / ((IEnergizedItem)stack.getItem()).getMaxEnergy(stack));
 		}
 	}
 }

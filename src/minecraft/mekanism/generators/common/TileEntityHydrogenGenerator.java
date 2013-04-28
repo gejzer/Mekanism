@@ -9,6 +9,7 @@ import mekanism.api.IGasAcceptor;
 import mekanism.api.IGasStorage;
 import mekanism.api.IStorageTank;
 import mekanism.api.ITubeConnection;
+import mekanism.common.ChargeUtils;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismUtils;
 import net.minecraft.item.ItemStack;
@@ -37,63 +38,47 @@ public class TileEntityHydrogenGenerator extends TileEntityGenerator implements 
 		inventory = new ItemStack[2];
 	}
 	
+	@Override
 	public void onUpdate()
 	{
 		super.onUpdate();
 		
-		if(inventory[1] != null && electricityStored > 0)
+		if(!worldObj.isRemote)
 		{
-			setJoules(getJoules() - ElectricItemHelper.chargeItem(inventory[1], getJoules(), getVoltage()));
+			ChargeUtils.charge(1, this);
 			
-			if(Mekanism.hooks.IC2Loaded && inventory[1].getItem() instanceof IElectricItem)
+			if(inventory[0] != null && hydrogenStored < MAX_HYDROGEN)
 			{
-				double sent = ElectricItem.charge(inventory[1], (int)(electricityStored*UniversalElectricity.TO_IC2_RATIO), 3, false, false)*UniversalElectricity.IC2_RATIO;
-				setJoules(electricityStored - sent);
-			}
-		}
-		
-		if(inventory[0] != null && hydrogenStored < MAX_HYDROGEN)
-		{
-			if(inventory[0].getItem() instanceof IStorageTank)
-			{
-				IStorageTank item = (IStorageTank)inventory[0].getItem();
-				
-				if(item.canProvideGas(inventory[0], EnumGas.HYDROGEN) && item.getGasType(inventory[0]) == EnumGas.HYDROGEN)
+				if(inventory[0].getItem() instanceof IStorageTank)
 				{
-					int received = 0;
-					int hydrogenNeeded = MAX_HYDROGEN - hydrogenStored;
-					if(item.getRate() <= hydrogenNeeded)
-					{
-						received = item.removeGas(inventory[0], EnumGas.HYDROGEN, item.getRate());
-					}
-					else if(item.getRate() > hydrogenNeeded)
-					{
-						received = item.removeGas(inventory[0], EnumGas.HYDROGEN, hydrogenNeeded);
-					}
+					IStorageTank item = (IStorageTank)inventory[0].getItem();
 					
-					setGas(EnumGas.HYDROGEN, hydrogenStored + received);
+					if(item.canProvideGas(inventory[0], EnumGas.HYDROGEN) && item.getGasType(inventory[0]) == EnumGas.HYDROGEN)
+					{
+						int received = 0;
+						int hydrogenNeeded = MAX_HYDROGEN - hydrogenStored;
+						if(item.getRate() <= hydrogenNeeded)
+						{
+							received = item.removeGas(inventory[0], EnumGas.HYDROGEN, item.getRate());
+						}
+						else if(item.getRate() > hydrogenNeeded)
+						{
+							received = item.removeGas(inventory[0], EnumGas.HYDROGEN, hydrogenNeeded);
+						}
+						
+						setGas(EnumGas.HYDROGEN, hydrogenStored + received);
+					}
 				}
 			}
-		}
-		
-		if(hydrogenStored > MAX_HYDROGEN)
-		{
-			hydrogenStored = MAX_HYDROGEN;
-		}
-		
-		if(canOperate())
-		{
-			if(!worldObj.isRemote)
+			
+			if(canOperate())
 			{
 				setActive(true);
+				
+				hydrogenStored-=2;
+				setEnergy(electricityStored + 200);
 			}
-			
-			hydrogenStored-=2;
-			setJoules(electricityStored + 200);
-		}
-		else {
-			if(!worldObj.isRemote)
-			{
+			else {
 				setActive(false);
 			}
 		}

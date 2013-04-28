@@ -12,7 +12,6 @@ import mekanism.api.IStrictEnergyAcceptor;
 import mekanism.api.IUpgradeManagement;
 import mekanism.api.SideData;
 import mekanism.client.IHasSound;
-import mekanism.client.Sound;
 import mekanism.common.IFactory.RecipeType;
 import mekanism.common.Tier.FactoryTier;
 import net.minecraft.item.Item;
@@ -42,10 +41,6 @@ public class TileEntityFactory extends TileEntityElectricBlock implements IEnerg
 	
 	/** An arraylist of SideData for this machine. */
 	public ArrayList<SideData> sideOutputs = new ArrayList<SideData>();
-	
-	/** The Sound instance for this machine. */
-	@SideOnly(Side.CLIENT)
-	public Sound audio;
 	
 	/** An int[] used to track all current operations' progress. */
 	public int[] progress;
@@ -106,149 +101,105 @@ public class TileEntityFactory extends TileEntityElectricBlock implements IEnerg
 		
 		if(worldObj.isRemote)
 		{
-			try {
-				if(Mekanism.audioHandler != null)
+			Mekanism.proxy.registerSound(this);
+		}
+		
+		if(!worldObj.isRemote)
+		{
+			ChargeUtils.discharge(1, this);
+			
+			if(inventory[0] != null)
+			{
+				if(inventory[0].isItemEqual(new ItemStack(Mekanism.EnergyUpgrade)) && energyMultiplier < 8)
 				{
-					synchronized(Mekanism.audioHandler.sounds)
+					if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
 					{
-						updateSound();
+						upgradeTicks++;
+					}
+					else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
+					{
+						upgradeTicks = 0;
+						energyMultiplier++;
+						
+						inventory[0].stackSize--;
+						
+						if(inventory[0].stackSize == 0)
+						{
+							inventory[0] = null;
+						}
 					}
 				}
-			} catch(NoSuchMethodError e) {}
-		}
-		
-		boolean testActive = false;
-		
-		for(int i : progress)
-		{
-			if(i > 0)
-			{
-				testActive = true;
-			}
-		}
-		
-		if(inventory[1] != null)
-		{
-			if(electricityStored < MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY))
-			{
-				setJoules(getJoules() + ElectricItemHelper.dechargeItem(inventory[1], getMaxJoules() - getJoules(), getVoltage()));
-				
-				if(Mekanism.hooks.IC2Loaded && inventory[1].getItem() instanceof IElectricItem)
+				else if(inventory[0].isItemEqual(new ItemStack(Mekanism.SpeedUpgrade)) && speedMultiplier < 8)
 				{
-					IElectricItem item = (IElectricItem)inventory[1].getItem();
-					if(item.canProvideEnergy(inventory[1]))
+					if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
 					{
-						double gain = ElectricItem.discharge(inventory[1], (int)((MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY) - electricityStored)*Mekanism.TO_IC2), 3, false, false)*Mekanism.FROM_IC2;
-						setJoules(electricityStored + gain);
+						upgradeTicks++;
+					}
+					else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
+					{
+						upgradeTicks = 0;
+						speedMultiplier++;
+						
+						inventory[0].stackSize--;
+						
+						if(inventory[0].stackSize == 0)
+						{
+							inventory[0] = null;
+						}
 					}
 				}
-			}
-			if(inventory[1].itemID == Item.redstone.itemID && electricityStored+1000 <= MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY))
-			{
-				setJoules(electricityStored + 1000);
-				inventory[1].stackSize--;
-				
-	            if(inventory[1].stackSize <= 0)
-	            {
-	                inventory[1] = null;
-	            }
-			}
-		}
-		
-		if(inventory[0] != null)
-		{
-			if(inventory[0].isItemEqual(new ItemStack(Mekanism.EnergyUpgrade)) && energyMultiplier < 8)
-			{
-				if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
-				{
-					upgradeTicks++;
-				}
-				else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
-				{
+				else {
 					upgradeTicks = 0;
-					energyMultiplier++;
-					
-					inventory[0].stackSize--;
-					
-					if(inventory[0].stackSize == 0)
-					{
-						inventory[0] = null;
-					}
-				}
-			}
-			else if(inventory[0].isItemEqual(new ItemStack(Mekanism.SpeedUpgrade)) && speedMultiplier < 8)
-			{
-				if(upgradeTicks < UPGRADE_TICKS_REQUIRED)
-				{
-					upgradeTicks++;
-				}
-				else if(upgradeTicks == UPGRADE_TICKS_REQUIRED)
-				{
-					upgradeTicks = 0;
-					speedMultiplier++;
-					
-					inventory[0].stackSize--;
-					
-					if(inventory[0].stackSize == 0)
-					{
-						inventory[0] = null;
-					}
 				}
 			}
 			else {
 				upgradeTicks = 0;
 			}
-		}
-		else {
-			upgradeTicks = 0;
-		}
-		
-		for(int process = 0; process < tier.processes; process++)
-		{
-			if(electricityStored >= ENERGY_PER_TICK)
+			
+			for(int process = 0; process < tier.processes; process++)
 			{
-				if(canOperate(getInputSlot(process), getOutputSlot(process)) && (progress[process]+1) < MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED))
+				if(electricityStored >= ENERGY_PER_TICK)
 				{
-					progress[process]++;
-					electricityStored -= ENERGY_PER_TICK;
-				}
-				else if(canOperate(getInputSlot(process), getOutputSlot(process)) && (progress[process]+1) >= MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED))
-				{
-					if(!worldObj.isRemote)
+					if(canOperate(getInputSlot(process), getOutputSlot(process)) && (progress[process]+1) < MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED))
+					{
+						progress[process]++;
+						electricityStored -= ENERGY_PER_TICK;
+					}
+					else if(canOperate(getInputSlot(process), getOutputSlot(process)) && (progress[process]+1) >= MekanismUtils.getTicks(speedMultiplier, TICKS_REQUIRED))
 					{
 						operate(getInputSlot(process), getOutputSlot(process));
+						
+						progress[process] = 0;
+						electricityStored -= ENERGY_PER_TICK;
 					}
-					
-					progress[process] = 0;
-					electricityStored -= ENERGY_PER_TICK;
 				}
-			}
-			
-			if(!canOperate(getInputSlot(process), getOutputSlot(process)))
-			{
-				progress[process] = 0;
-			}
-		}
-		
-		if(!worldObj.isRemote)
-		{
-			boolean hasOperation = false;
-			
-			for(int i = 0; i < tier.processes; i++)
-			{
-				if(canOperate(getInputSlot(i), getOutputSlot(i)))
+				
+				if(!canOperate(getInputSlot(process), getOutputSlot(process)))
 				{
-					hasOperation = true;
-					break;
+					progress[process] = 0;
 				}
 			}
 			
-			if(hasOperation && electricityStored >= ENERGY_PER_TICK)
+			if(!worldObj.isRemote)
 			{
-				setActive(true);
-			}
-			else {
-				setActive(false);
+				boolean hasOperation = false;
+				
+				for(int i = 0; i < tier.processes; i++)
+				{
+					if(canOperate(getInputSlot(i), getOutputSlot(i)))
+					{
+						hasOperation = true;
+						break;
+					}
+				}
+				
+				if(hasOperation && electricityStored >= ENERGY_PER_TICK)
+				{
+					setActive(true);
+				}
+				else {
+					setActive(false);
+				}
 			}
 		}
 	}
@@ -329,45 +280,14 @@ public class TileEntityFactory extends TileEntityElectricBlock implements IEnerg
 		return true;
 	}
 	
-	@SideOnly(Side.CLIENT)
-	@Override
-	public void updateSound()
-	{
-		if(Mekanism.audioHandler != null)
-		{
-			synchronized(Mekanism.audioHandler.sounds)
-			{
-				if(audio == null && worldObj != null && worldObj.isRemote)
-				{
-					if(FMLClientHandler.instance().getClient().sndManager.sndSystem != null)
-					{
-						audio = Mekanism.audioHandler.getSound(RecipeType.values()[recipeType].getSound(), worldObj, xCoord, yCoord, zCoord);
-					}
-				}
-				
-				if(worldObj != null && worldObj.isRemote && audio != null)
-				{
-					if(!audio.isPlaying && isActive == true)
-					{
-						audio.play();
-					}
-					else if(audio.isPlaying && isActive == false)
-					{
-						audio.stopLoop();
-					}
-				}
-			}
-		}
-	}
-	
 	@Override
 	public void invalidate()
 	{
 		super.invalidate();
 		
-		if(worldObj.isRemote && audio != null)
+		if(worldObj.isRemote)
 		{
-			audio.remove();
+			Mekanism.proxy.unregisterSound(this);
 		}
 	}
 	
@@ -648,7 +568,7 @@ public class TileEntityFactory extends TileEntityElectricBlock implements IEnerg
 	public void detach(IComputerAccess computer) {}
 
 	@Override
-	public double getMaxJoules() 
+	public double getMaxEnergy() 
 	{
 		return MekanismUtils.getEnergy(energyMultiplier, MAX_ELECTRICITY);
 	}
@@ -763,18 +683,10 @@ public class TileEntityFactory extends TileEntityElectricBlock implements IEnerg
 	{
 		return true;
 	}
-	
+
 	@Override
-	@SideOnly(Side.CLIENT)
-	public Sound getSound()
+	public String getSoundPath()
 	{
-		return audio;
-	}
-	
-	@Override
-	@SideOnly(Side.CLIENT)
-	public void removeSound()
-	{
-		audio = null;
+		return RecipeType.values()[recipeType].getSound();
 	}
 }

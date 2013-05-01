@@ -14,6 +14,8 @@ import mekanism.api.IGasStorage;
 import mekanism.api.IMechanicalPipe;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.common.ForgeDirection;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.Event;
 import net.minecraftforge.liquids.ILiquidTank;
 import net.minecraftforge.liquids.ITankContainer;
 import net.minecraftforge.liquids.LiquidStack;
@@ -63,61 +65,13 @@ public class LiquidTransferProtocol
 		
 		for(ITankContainer acceptor : acceptors)
 		{
-			if(acceptor != null)
+			if(acceptor != null && !availableAcceptors.contains(acceptor))
 			{
 				ForgeDirection side = ForgeDirection.getOrientation(Arrays.asList(acceptors).indexOf(acceptor)).getOpposite();
+				
 				if(acceptor != original && !(acceptor instanceof IMechanicalPipe))
 				{
-					ILiquidTank[] tanks = acceptor.getTanks(side);
-					boolean hasTank = false;
-					
-					for(ILiquidTank tank : tanks)
-					{
-						if(tank != null)
-						{
-							if(tank.getLiquid() == null)
-							{
-								hasTank = true;
-								break;
-							}
-							else {
-								if(tank.getLiquid().isLiquidEqual(liquidToSend))
-								{
-									if(tank.getCapacity()-tank.getLiquid().amount != 0)
-									{
-										hasTank = true;
-										break;
-									}
-								}
-							}
-						}
-					}
-					
-					if(!hasTank)
-					{
-						if(acceptor.getTank(side, liquidToSend) != null)
-						{
-							ILiquidTank tank = acceptor.getTank(side, liquidToSend);
-							
-							if(tank.getLiquid() == null)
-							{
-								hasTank = true;
-								break;
-							}
-							else {
-								if(tank.getLiquid().isLiquidEqual(liquidToSend))
-								{
-									if(tank.getCapacity()-tank.getLiquid().amount != 0)
-									{
-										hasTank = true;
-										break;
-									}
-								}
-							}
-						}
-					}
-					
-					if(hasTank)
+					if(acceptor.fill(side, liquidToSend, false) > 0)
 					{
 						availableAcceptors.add(acceptor);
 						acceptorDirections.put(acceptor, ForgeDirection.getOrientation(Arrays.asList(acceptors).indexOf(acceptor)).getOpposite());
@@ -190,33 +144,7 @@ public class LiquidTransferProtocol
 					remaining--;
 				}
 				
-				if(acceptor.getTanks(acceptorDirections.get(acceptor)).length != 0)
-				{
-					int tankDivider = acceptor.getTanks(acceptorDirections.get(acceptor)).length;
-					int tankRemaining = currentSending % tankDivider;
-					int tankSending = (currentSending-tankRemaining)/tankDivider;
-					
-					for(ILiquidTank tank : acceptor.getTanks(acceptorDirections.get(acceptor)))
-					{
-						int tankCurrentSending = tankSending;
-						
-						if(tankRemaining > 0)
-						{
-							tankCurrentSending++;
-							tankRemaining--;
-						}
-						
-						liquidSent += acceptor.fill(acceptorDirections.get(acceptor), new LiquidStack(liquidToSend.itemID, tankCurrentSending, liquidToSend.itemMeta), true);
-					}
-				}
-				else {
-					if(acceptor.getTank(acceptorDirections.get(acceptor), liquidToSend) != null)
-					{
-						ILiquidTank tank = acceptor.getTank(acceptorDirections.get(acceptor), liquidToSend);
-						
-						liquidSent += acceptor.fill(acceptorDirections.get(acceptor), new LiquidStack(liquidToSend.itemID, currentSending, liquidToSend.itemMeta), true);
-					}
-				}
+				liquidSent += acceptor.fill(acceptorDirections.get(acceptor), new LiquidStack(liquidToSend.itemID, currentSending, liquidToSend.itemMeta), true);
 			}
 		}
 		
@@ -224,9 +152,22 @@ public class LiquidTransferProtocol
 		{
 			LiquidStack sendStack = liquidToSend.copy();
 			sendStack.amount = liquidSent;
-			PacketHandler.sendLiquidTransferUpdate(pointer, sendStack);
+			MinecraftForge.EVENT_BUS.post(new LiquidTransferEvent(this, sendStack));
 		}
 		
 		return liquidSent;
+	}
+	
+	public static class LiquidTransferEvent extends Event
+	{
+		public final LiquidTransferProtocol transferProtocol;
+		
+		public final LiquidStack liquidSent;
+		
+		public LiquidTransferEvent(LiquidTransferProtocol protocol, LiquidStack liquid)
+		{
+			transferProtocol = protocol;
+			liquidSent = liquid;
+		}
 	}
 }

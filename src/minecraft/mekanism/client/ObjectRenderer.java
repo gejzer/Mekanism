@@ -6,6 +6,9 @@ import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.Icon;
 import net.minecraft.world.IBlockAccess;
 
+/*
+ * Credit to BuildCraft
+ */
 public class ObjectRenderer 
 {
 	private static RenderBlocks renderBlocks = new RenderBlocks();
@@ -18,8 +21,6 @@ public class ObjectRenderer
 		public double maxX;
 		public double maxY;
 		public double maxZ;
-		
-		public int lightValue;
 
 		public Block baseBlock = Block.sand;
 

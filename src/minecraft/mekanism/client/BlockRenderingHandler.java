@@ -98,7 +98,7 @@ public class BlockRenderingHandler implements ISimpleBlockRenderingHandler
 	@Override
 	public int getRenderId() 
 	{
-		return ClientProxy.RENDER_ID;
+		return ClientProxy.MACHINE_RENDER_ID;
 	}
 	
 	/**
